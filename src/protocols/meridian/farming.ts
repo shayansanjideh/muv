@@ -78,7 +78,7 @@ export function buildClaimRewardsPayload(
 ): InputGenerateTransactionPayloadData {
   const contract = useClamm ? MERIDIAN_CLAMM_FARMING : MERIDIAN_FARMING;
   return {
-    function: `${contract}::farming::claim_rewards`,
+    function: `${contract}::farming::claim_meridian`,
     typeArguments: [],
     functionArguments: [
       AccountAddress.fromString(lpTokenAddress),

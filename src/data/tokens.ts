@@ -35,9 +35,6 @@ export const TOKEN_REGISTRY: TokenInfo[] = [
   { symbol: "OTC", name: "OTC", faAddress: "0x3ffd430a87712e1c31adf5f61bafb377eaef8139d1b61b24eef085d2bf40c831", decimals: 8 },
   { symbol: "savUSD", name: "savUSD", faAddress: "0xde6eb2598d91fd43c432ba7f0bca56158525a74ac0841b749ce17bf984cf5642", decimals: 8 },
   { symbol: "M-BTC", name: "M-BTC", faAddress: "0xc457331726b4672205f8a89f7b6e3a0545e2edadf6e4ee86ceaaf9147ae9d80a", decimals: 8 },
-  { symbol: "mUSD", name: "Movement USD", faAddress: "0x5e15635e1c0f8d5b4e3f8c6e2c5bc6a7c8d2f1e9a4b3c7d6e8f0a1b2c3d4e5f6", decimals: 6 },
-  { symbol: "stMOVE", name: "Staked MOVE", faAddress: "0x7e8c9a1b2d3f4e5a6b7c8d9e0f1a2b3c4d5e6f7a8b9c0d1e2f3a4b5c6d7e8f9a", decimals: 8 },
-
   // Canopy vault tokens
   { symbol: "cvMOVE (0)", name: "Canopy Vault MOVE (0)", faAddress: "0xe005014fbdd053aebf97b9a36dfeed790d337f571fa9d37690f527acb3015e02", decimals: 8 },
   { symbol: "cvMOVE (2)", name: "Canopy Vault MOVE (2)", faAddress: "0x01d42fda1a3eac95ebcb4a35ba7f2c76c35855800c9fbf45a5255d146b5bac15", decimals: 8 },

@@ -67,6 +67,15 @@ const tools: Tool[] = [
           type: "number",
           description: "Slippage tolerance in basis points (default: 50 = 0.5%)",
         },
+        amm_pool_type: {
+          type: "string",
+          enum: ["stable", "weighted", "metastable"],
+          description: "AMM pool type — determines which swap function to call (default: weighted). Use 'stable' for stablecoin pairs, 'weighted' for general pairs, 'metastable' for LST pairs.",
+        },
+        expected_output: {
+          type: "string",
+          description: "Expected output amount (in to_token units) for slippage calculation. If omitted, minOutput defaults to 1 (no slippage protection).",
+        },
       },
       required: ["from_token", "to_token", "amount"],
     },
@@ -140,6 +149,8 @@ async function handleToolCall(
           amount: input.amount as string,
           useCLAMM: (input.use_clamm as boolean) ?? false,
           slippageBps: (input.slippage_bps as number) ?? 50,
+          ammPoolType: (input.amm_pool_type as "stable" | "weighted" | "metastable") ?? "weighted",
+          expectedOutput: input.expected_output as string | undefined,
         };
 
         const payload = buildSwapPayload(params);

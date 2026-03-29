@@ -22,7 +22,7 @@ export async function getPoolInfo(
 
     // Look for the pool resource matching these tokens
     for (const resource of resources) {
-      if (resource.type.includes("pool::LiquidityPool") || resource.type.includes("pool::Pool")) {
+      if (resource.type.includes("pool::MeridianAMM") || resource.type.includes("pool::LiquidityPool") || resource.type.includes("pool::Pool")) {
         const data = resource.data as Record<string, unknown>;
         return {
           tokenA: tokenAAddress,
