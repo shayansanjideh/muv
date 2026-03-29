@@ -1,4 +1,37 @@
+import chalk from "chalk";
 import type { TokenBalance } from "../chain/balance.js";
+
+export function displayPreview(
+  action: string,
+  details: Record<string, unknown>
+): void {
+  console.log("");
+  console.log(chalk.yellow("-------------------------------------------"));
+  console.log(chalk.bold.white(`  Transaction Preview: ${action}`));
+  console.log(chalk.yellow("-------------------------------------------"));
+
+  for (const [key, value] of Object.entries(details)) {
+    if (key === "action") continue;
+    const label = formatLabel(key);
+    console.log(`  ${chalk.cyan(label.padEnd(16))} ${chalk.white(String(value))}`);
+  }
+
+  console.log(chalk.yellow("-------------------------------------------"));
+  console.log("");
+}
+
+export function displayResult(action: string, txHash: string): void {
+  console.log("");
+  console.log(chalk.green(`  [ok] ${action} successful!`));
+  console.log(chalk.gray(`  TX: ${txHash}`));
+  console.log("");
+}
+
+export function displayError(message: string): void {
+  console.log("");
+  console.log(chalk.red(`  [error] ${message}`));
+  console.log("");
+}
 
 export function displayBalances(balances: TokenBalance[]): string {
   if (balances.length === 0) {
@@ -16,31 +49,23 @@ export function displayBalances(balances: TokenBalance[]): string {
   return lines.join("\n");
 }
 
-export function displayTransactionPreview(params: {
-  action: string;
-  details: Record<string, string>;
-  gasEstimate?: string;
-}): string {
-  const lines = [`Transaction Preview: ${params.action}`, ""];
-
-  for (const [key, value] of Object.entries(params.details)) {
-    lines.push(`  ${key}: ${value}`);
-  }
-
-  if (params.gasEstimate) {
-    lines.push(`  Estimated gas: ${params.gasEstimate}`);
-  }
-
-  lines.push("");
-  lines.push("Confirm? (y/n)");
-
-  return lines.join("\n");
+export function displayWelcome(): void {
+  console.log("");
+  console.log(chalk.bold.cyan("  muv") + chalk.gray(" — Movement blockchain, plain English"));
+  console.log(chalk.gray("  Type naturally. Type 'exit' or 'quit' to leave."));
+  console.log("");
 }
 
-export function displaySuccess(txHash: string): string {
-  return `Transaction successful! Hash: ${txHash}`;
+export function displaySetupHeader(): void {
+  console.log("");
+  console.log(chalk.bold.cyan("  muv — First-time Setup"));
+  console.log("");
 }
 
-export function displayError(message: string): string {
-  return `Error: ${message}`;
+function formatLabel(key: string): string {
+  return key
+    .replace(/([A-Z])/g, " $1")
+    .replace(/_/g, " ")
+    .replace(/^\w/, (c) => c.toUpperCase())
+    .trim() + ":";
 }
