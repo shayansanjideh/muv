@@ -6,8 +6,6 @@ import { aptosClient } from "../../chain/client.js";
 
 const MERIDIAN_FARMING =
   "0xf1fc2bc72b9eeaa3cc80239d5c00e49ebab0b2c8a5b55227ce47644b3275ff96";
-const MERIDIAN_CLAMM_FARMING =
-  "0x4c5da52eaa510af14e93e7b16dddf3c5d6a9b3f847d18dc8e7499fc71a5a0a24";
 
 export interface FarmingPosition {
   pool: string;
@@ -42,13 +40,11 @@ export async function getUserFarmingPositions(
 
 export function buildStakePayload(
   poolId: number,
-  amount: bigint,
-  useClamm: boolean = false
+  amount: bigint
 ): InputGenerateTransactionPayloadData {
-  const contract = useClamm ? MERIDIAN_CLAMM_FARMING : MERIDIAN_FARMING;
   // scripts::stake(&signer, u64, u64) = (signer, pool_id, amount)
   return {
-    function: `${contract}::scripts::stake`,
+    function: `${MERIDIAN_FARMING}::scripts::stake`,
     typeArguments: [],
     functionArguments: [
       poolId,
@@ -59,13 +55,11 @@ export function buildStakePayload(
 
 export function buildUnstakePayload(
   poolId: number,
-  amount: bigint,
-  useClamm: boolean = false
+  amount: bigint
 ): InputGenerateTransactionPayloadData {
-  const contract = useClamm ? MERIDIAN_CLAMM_FARMING : MERIDIAN_FARMING;
   // scripts::unstake(&signer, u64, u64) = (signer, pool_id, amount)
   return {
-    function: `${contract}::scripts::unstake`,
+    function: `${MERIDIAN_FARMING}::scripts::unstake`,
     typeArguments: [],
     functionArguments: [
       poolId,
@@ -75,13 +69,11 @@ export function buildUnstakePayload(
 }
 
 export function buildClaimRewardsPayload(
-  poolId: number,
-  useClamm: boolean = false
+  poolId: number
 ): InputGenerateTransactionPayloadData {
-  const contract = useClamm ? MERIDIAN_CLAMM_FARMING : MERIDIAN_FARMING;
   // scripts::claim(&signer, u64) = (signer, pool_id)
   return {
-    function: `${contract}::scripts::claim`,
+    function: `${MERIDIAN_FARMING}::scripts::claim`,
     typeArguments: [],
     functionArguments: [
       poolId,
