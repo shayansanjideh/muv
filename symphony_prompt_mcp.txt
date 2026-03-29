@@ -1,0 +1,100 @@
+Refactor muv from a standalone REPL CLI into an MCP (Model Context Protocol) server that exposes Movement blockchain tools. This makes muv agent-agnostic — it works with Claude Code, Cursor, Windsurf, or any MCP-compatible client. No API key needed for end users.
+
+CURRENT STATE:
+muv is a TypeScript CLI with an embedded Claude API client that:
+- Runs an interactive REPL (src/index.ts)
+- Uses @anthropic-ai/sdk for NL parsing (src/ai/client.ts, src/ai/intent.ts, src/ai/prompts.ts)
+- Has 5 Claude tools: get_balances, get_token_balance, swap_tokens, transfer_tokens, get_positions
+- Has blockchain integration: chain client, balance queries, transfers, Meridian DEX swaps/farming
+- Has a hardcoded token registry with 54 tokens
+- Handles transaction confirmation (preview + y/n) before submission
+
+WHAT TO BUILD:
+Convert muv into an MCP server using the @modelcontextprotocol/sdk package. The server should expose the existing blockchain functionality as MCP tools that any MCP-compatible agent can call.
+
+ARCHITECTURE CHANGE:
+Before: User → muv REPL → Claude API → tool_use → blockchain
+After:  User → Any MCP client (Claude Code, Cursor, etc.) → muv MCP server → blockchain
+
+REQUIREMENTS:
+
+1. MCP SERVER SETUP:
+   - Use @modelcontextprotocol/sdk to create an MCP server
+   - Transport: stdio (standard for local MCP servers)
+   - Server name: "muv"
+   - Register all tools with proper input schemas (JSON Schema, similar to current tool definitions)
+
+2. MCP TOOLS TO EXPOSE (convert existing 5 tools):
+   - get_balances: Returns all non-zero token balances for a wallet address
+   - get_token_balance: Returns balance of a specific token for a wallet address
+   - swap_tokens: Build a Meridian swap transaction (AMM or CLAMM)
+   - transfer_tokens: Build a token transfer transaction
+   - get_positions: Query Meridian LP/farming positions
+
+3. TOOL INPUT/OUTPUT CHANGES:
+   - Tools should accept a wallet_address parameter (instead of reading from config)
+   - Write tools (swap, transfer) should return the transaction payload for the agent to present to the user, NOT auto-submit
+   - The MCP client (Claude Code etc.) handles user confirmation, not muv
+   - Return structured JSON with all details (amounts, gas estimates, tx payload)
+
+4. WALLET HANDLING:
+   - For read operations (balances, positions): accept wallet_address as a tool parameter
+   - For write operations (swap, transfer): accept private_key as a tool parameter so muv can sign and submit
+   - The MCP client is responsible for securely providing the private key (from user config, env var, etc.)
+
+5. KEEP EXISTING CODE:
+   - src/chain/* — keep all chain interaction code
+   - src/protocols/meridian/* — keep all Meridian integration
+   - src/data/tokens.ts — keep the token registry
+   - src/ui/display.ts — can keep for formatting tool responses
+
+6. REMOVE:
+   - src/ai/* — no longer needed (the MCP client IS the AI)
+   - src/index.ts REPL — no longer needed
+   - src/config.ts — simplify (no more personality, API key storage)
+   - src/wallet.ts — simplify (wallet provided per-request, not stored)
+   - src/ui/confirm.ts — MCP client handles confirmation
+   - @anthropic-ai/sdk dependency — no longer needed
+
+7. NEW FILES:
+   - src/server.ts — MCP server setup, tool registration, request handling
+   - src/bin/muv.ts — entry point that starts the MCP server (stdio transport)
+   - muv-mcp.json — MCP config file users can reference
+
+8. MCP CONFIG FILE (muv-mcp.json):
+   {
+     "mcpServers": {
+       "muv": {
+         "command": "node",
+         "args": ["dist/bin/muv.js"]
+       }
+     }
+   }
+
+9. USAGE:
+   Users add muv to their MCP client config, then interact naturally:
+   - Claude Code: claude --mcp-config muv-mcp.json
+   - Or add to ~/.claude/settings.json under mcpServers
+
+10. PACKAGE.JSON CHANGES:
+    - Remove @anthropic-ai/sdk dependency
+    - Add @modelcontextprotocol/sdk dependency
+    - Keep @aptos-labs/ts-sdk
+    - Update bin entry point
+
+EXAMPLE TOOL INTERACTION (what the MCP client sees):
+
+Tool: get_balances
+Input: { "wallet_address": "0x123..." }
+Output: { "balances": [{ "symbol": "MOVE", "balance": "142.5", "faAddress": "0x...0a" }, ...] }
+
+Tool: swap_tokens
+Input: { "wallet_address": "0x123...", "private_key": "0xabc...", "from_token": "USDC.e", "to_token": "MOVE", "amount": "10", "pool_type": "stable", "pool_address": "0x..." }
+Output: { "success": true, "tx_hash": "0x...", "amount_in": "10 USDC.e", "amount_out": "28.3 MOVE", "gas_used": "0.001 MOVE" }
+
+IMPORTANT:
+- The token registry (src/data/tokens.ts) must remain unchanged — all 54 tokens with exact addresses
+- All Meridian contract addresses must remain the same
+- Movement mainnet RPC: https://mainnet.movementnetwork.xyz/v1
+- Chain interaction code (src/chain/*) should need minimal changes
+- The MCP server should handle errors gracefully and return structured error responses

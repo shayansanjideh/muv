@@ -1,162 +1,185 @@
-# Feature Specification: muv — Natural Language CLI for Movement Blockchain
+# Feature Specification: Refactor muv from REPL CLI to MCP Server
 
 ## Overview
-muv is a TypeScript CLI tool that lets end users interact with the Movement blockchain (Aptos fork, chain ID 126) using plain English. Users type natural language commands like "swap 10 USDC.e for MOVE" or "what's my balance?" and muv translates intent into on-chain actions using Claude API tool calling. The project already has a complete codebase scaffold — this spec defines the acceptance criteria and identifies issues that must be fixed for the tool to compile and run correctly.
+Convert muv from a standalone REPL CLI with an embedded Claude API client into an MCP (Model Context Protocol) server using `@modelcontextprotocol/sdk`. The server exposes Movement blockchain tools over stdio transport, making muv agent-agnostic — usable with Claude Code, Cursor, Windsurf, or any MCP-compatible client. No Anthropic API key is needed by end users.
 
 ## Scope
 
 ### In Scope
-- CLI binary (`muv`) with interactive REPL
-- First-run onboarding: wallet import/generate + personality selection
-- Claude API integration with tool_use for intent mapping
-- Token balance queries (all tokens and per-token)
-- Token transfers (MOVE native + fungible assets)
-- Meridian DEX swaps (AMM with stable/weighted/metastable pool types, and CLAMM)
-- Meridian LP/farming position queries
-- Mandatory transaction confirmation before any on-chain submission
-- Hardcoded token registry with all specified tokens (27 core + 20 Canopy vault + 7 IPX LP = 54 total)
-- Correct TypeScript compilation (`npm run build` succeeds with zero errors)
+- Create MCP server entry point with stdio transport using `@modelcontextprotocol/sdk`
+- Register 5 existing tools as MCP tools with JSON Schema input definitions
+- Adapt tool handlers to accept `wallet_address` / `private_key` per-request (instead of reading from stored config)
+- Write tools (swap, transfer) sign+submit transactions using the provided private key
+- Remove all AI/REPL code (`src/ai/*`, `src/index.ts` REPL, `src/ui/confirm.ts`)
+- Simplify `src/config.ts` and `src/wallet.ts` (remove stored state)
+- Update `package.json` (swap `@anthropic-ai/sdk` for `@modelcontextprotocol/sdk`)
+- Create `muv-mcp.json` config file for easy MCP client integration
 
 ### Out of Scope
-- Testnet/devnet support (mainnet only)
-- Mnemonic/BIP39 wallet import (private key hex only for v1)
-- Price oracle integration (no real price feeds — AI can note this limitation)
-- Transaction history queries (would require indexer pagination — deferred)
-- LP deposit/withdraw transactions (read-only position queries only)
-- Farming stake/unstake/claim execution from NL (farming.ts has builders but they are not wired as AI tools)
-- Web UI or any non-CLI interface
+- Adding new tools beyond the existing 5
+- HTTP/SSE transport (stdio only)
+- MCP resources or prompts (tools only)
+- Token registry changes
+- Meridian contract address changes
+- Any blockchain logic changes
 
 ## Functional Requirements
 
-1. **Binary Entry Point**: Running `npx muv` or `node dist/bin/muv.js` starts the application. The `bin/muv.ts` file has a shebang (`#!/usr/bin/env node`) and invokes `startRepl()`.
+1. **MCP Server Initialization**: `src/server.ts` creates a `McpServer` (from `@modelcontextprotocol/sdk/server/mcp.js`) with name `"muv"` and version `"0.1.0"`, connects via `StdioServerTransport` (from `@modelcontextprotocol/sdk/server/stdio.js`).
 
-2. **First-Run Onboarding**: If `~/.config/muv/wallet.json` or `~/.config/muv/config.json` does not exist, the REPL enters onboarding flow:
-   - Prompt user to choose: (1) Import existing private key, (2) Generate new wallet
-   - Import accepts a hex private key (with or without `0x` prefix), derives the Ed25519 account, saves to `~/.config/muv/wallet.json`
-   - Generate creates a new `Account.generate()`, saves private key + address to wallet.json
-   - Prompt user to choose personality: (1) Terse, (2) Friendly — saves to `~/.config/muv/config.json`
+2. **Tool: `get_balances`** — Accepts `{ wallet_address: string }`. Returns JSON `{ balances: [{ symbol, name, balance, faAddress }] }` for all non-zero token balances. Uses `getAllBalances()` from `src/chain/balance.ts`.
 
-3. **REPL Loop**: After onboarding, displays `muv>` prompt. User types natural language. Exit with `exit`, `quit`, `q`, or `.exit`.
+3. **Tool: `get_token_balance`** — Accepts `{ wallet_address: string, token_symbol: string }`. Returns JSON `{ symbol, name, balance, faAddress }` for a single token. Uses `getBalance()` from `src/chain/balance.ts`.
 
-4. **AI Intent Parsing**: Each user input is sent to Claude API (`claude-sonnet-4-20250514`) with:
-   - A system prompt containing the wallet address, personality style, full token registry, and behavioral rules
-   - Five tools: `get_balances`, `get_token_balance`, `swap_tokens`, `transfer_tokens`, `get_positions`
-   - A conversation history (`MessageParam[]`) for multi-turn context
-   - A tool-use loop that continues calling tools until the model returns a text response
+4. **Tool: `swap_tokens`** — Accepts `{ private_key, from_token, to_token, amount, pool_address, use_clamm?, slippage_bps?, amm_pool_type?, expected_output?, zero_for_one? }`. Builds swap payload via `buildSwapPayload()`, signs and submits via `buildAndSubmitTransaction()`, returns JSON `{ success, tx_hash, details }`. The private key is used to construct an `Account` object for signing.
 
-5. **Balance Queries**: `get_balances` returns all non-zero fungible asset balances for the user's address via `aptosClient.getCurrentFungibleAssetBalances`. `get_token_balance` returns a single token's balance.
+5. **Tool: `transfer_tokens`** — Accepts `{ private_key, token_symbol, recipient, amount }`. Builds transfer payload via `buildTransferPayload()`, signs and submits, returns JSON `{ success, tx_hash, details }`.
 
-6. **Token Transfers**: `transfer_tokens` builds a payload using either `0x1::aptos_account::transfer` (for native MOVE) or `0x1::primary_fungible_store::transfer` (for fungible assets), simulates for gas estimate, shows confirmation, then submits.
+6. **Tool: `get_positions`** — Accepts `{ wallet_address: string }`. Returns JSON `{ lp_positions: [...], farming_positions: [...] }` using `getUserPositions()` and `getUserFarmingPositions()` from `src/protocols/meridian/`.
 
-7. **Meridian Swaps**: `swap_tokens` supports:
-   - **AMM**: Calls `{MERIDIAN_AMM}::pool::swap_exact_in_{poolType}_entry` with args `(pool_object, from_metadata, amount, to_metadata, min_output)`. Pool types: stable, weighted, metastable.
-   - **CLAMM**: Calls `{MERIDIAN_CLAMM}::scripts::swap` with args `(pool_object, amount, min_output, sqrt_price_limit, zero_for_one, exact_input, partner_string)`.
-   - Both require `pool_address` (the on-chain pool object address). The AI must be instructed to ask the user or note that pool addresses are needed.
-   - Slippage defaults to 50 bps (0.5%). `min_output` is calculated as `expectedOutput * (10000 - slippageBps) / 10000`.
+7. **Error Handling**: All tool handlers wrap execution in try/catch and return structured JSON errors: `{ error: true, message: string }`. The MCP server itself never crashes on tool errors.
 
-8. **Position Queries**: `get_positions` scans user's account resources for LP position and farming position resource types.
+8. **Entry Point**: `src/bin/muv.ts` imports and calls a `startServer()` function from `src/server.ts`. The shebang `#!/usr/bin/env node` is preserved.
 
-9. **Transaction Confirmation**: Before every write transaction (swap, transfer), the system must:
-   - Simulate the transaction to get gas estimate
-   - Display a preview showing action, amounts, gas estimate
-   - Wait for user to type `y`/`yes` or `n`/`no`
-   - Only submit if confirmed
-
-10. **Token Registry**: `src/data/tokens.ts` exports `TOKEN_REGISTRY: TokenInfo[]` with exactly 54 entries. `findToken(query)` does case-insensitive match on symbol or name. `findTokenByAddress(address)` does case-insensitive match on faAddress.
+9. **MCP Config File**: `muv-mcp.json` at project root contains the MCP server configuration pointing to `dist/bin/muv.js`.
 
 ## Non-Functional Requirements
-- **TypeScript strict mode**: `tsconfig.json` has `"strict": true`. All code must compile with zero errors under `tsc`.
-- **ES Modules**: Project uses `"type": "module"` in package.json and `"module": "Node16"` in tsconfig. All local imports must use `.js` extension.
-- **No external runtime dependencies** beyond `@anthropic-ai/sdk` and `@aptos-labs/ts-sdk` (plus their transitive deps).
-- **API Key**: Read from `ANTHROPIC_API_KEY` env var or `config.json`. Exit with clear error if missing.
-- **Mainnet only**: RPC hardcoded to `https://mainnet.movementnetwork.xyz/v1`, indexer to `https://indexer.mainnet.movementnetwork.xyz/v1/graphql`.
+- No user interaction (stdin prompts) in the server — all communication via MCP protocol over stdio
+- Server must not write to stdout except via MCP protocol (no `console.log`; use `console.error` for debug logging if needed)
+- All tool responses are valid JSON strings
+- Startup time < 2 seconds (no heavy initialization blocking)
 
 ## Acceptance Criteria
 
-Each criterion is independently verifiable:
-
-- **AC-1:** `npm run build` (i.e., `tsc`) completes with exit code 0 and zero errors. The `dist/` directory contains compiled `.js` and `.d.ts` files for all source files.
-
-- **AC-2:** `node dist/bin/muv.js` starts without crashing (given `ANTHROPIC_API_KEY` is set). If no wallet exists, it prints the onboarding prompts. If wallet exists, it shows `muv ready. Wallet: <address>` and the `muv>` prompt.
-
-- **AC-3:** The file `src/data/tokens.ts` exports a `TOKEN_REGISTRY` array containing all 54 tokens listed in the requirements (27 core tokens + 20 Canopy vault tokens + 7 IPX LP tokens) with exactly the `faAddress` and `decimals` values specified. No token addresses are fabricated.
-
-- **AC-4:** `src/ai/intent.ts` defines exactly 5 tools (`get_balances`, `get_token_balance`, `swap_tokens`, `transfer_tokens`, `get_positions`) with proper `input_schema` definitions that the Claude API accepts.
-
-- **AC-5:** The `swap_tokens` tool handler calls `buildSwapPayload` which dispatches to `buildAmmSwapPayload` (default) or `buildClammSwapPayload` (when `use_clamm` is true). AMM swap calls `{AMM_ADDRESS}::pool::swap_exact_in_{poolType}_entry`. CLAMM swap calls `{CLAMM_ADDRESS}::scripts::swap`.
-
-- **AC-6:** The `transfer_tokens` tool handler uses `0x1::aptos_account::transfer` for native MOVE and `0x1::primary_fungible_store::transfer` for other fungible assets.
-
-- **AC-7:** Every write transaction (swap, transfer) calls `simulateTransaction` for gas estimate, then calls `confirmTransaction` which prints a preview and waits for `y`/`n` input before proceeding. If the user types anything other than `y`/`yes`, the transaction is cancelled.
-
-- **AC-8:** The `ConversationManager` class maintains conversation history across turns and loops on `stop_reason === "tool_use"` to handle multi-step tool calls within a single user request.
-
-- **AC-9:** The system prompt in `src/ai/prompts.ts` includes the full token list, the user's wallet address, and adapts its style based on personality setting ("terse" or "friendly").
-
-- **AC-10:** The Aptos client in `src/chain/client.ts` is configured with `Network.CUSTOM`, fullnode URL `https://mainnet.movementnetwork.xyz/v1`, and indexer URL `https://indexer.mainnet.movementnetwork.xyz/v1/graphql`.
+- **AC-1:** Running `npx tsc` (or `npm run build`) completes with zero errors.
+- **AC-2:** `package.json` lists `@modelcontextprotocol/sdk` as a dependency and does NOT list `@anthropic-ai/sdk`.
+- **AC-3:** The files `src/ai/client.ts`, `src/ai/intent.ts`, `src/ai/prompts.ts` do not exist.
+- **AC-4:** `src/server.ts` exists and exports a `startServer()` function that creates a `McpServer` instance and connects it to a `StdioServerTransport`.
+- **AC-5:** `src/server.ts` registers exactly 5 tools: `get_balances`, `get_token_balance`, `swap_tokens`, `transfer_tokens`, `get_positions`.
+- **AC-6:** The `get_balances` tool schema requires `wallet_address` (string) as input.
+- **AC-7:** The `swap_tokens` tool schema requires `private_key`, `from_token`, `to_token`, `amount`, `pool_address` as input parameters.
+- **AC-8:** The `transfer_tokens` tool schema requires `private_key`, `token_symbol`, `recipient`, `amount` as input parameters.
+- **AC-9:** The `get_positions` tool schema requires `wallet_address` (string) as input.
+- **AC-10:** `src/bin/muv.ts` imports from `../server.js` and calls `startServer()`.
+- **AC-11:** `src/ui/confirm.ts` does not exist (no interactive confirmation in MCP server).
+- **AC-12:** `src/index.ts` either does not exist or does not contain REPL logic (no `readline`, no `startRepl`).
+- **AC-13:** `muv-mcp.json` exists at project root with content `{"mcpServers":{"muv":{"command":"node","args":["dist/bin/muv.js"]}}}`.
+- **AC-14:** `src/data/tokens.ts` is unchanged (all 54 tokens preserved with exact addresses).
+- **AC-15:** `src/chain/client.ts`, `src/chain/balance.ts`, `src/chain/transfer.ts`, `src/chain/transactions.ts` still exist and retain their core functions.
+- **AC-16:** `src/protocols/meridian/swap.ts` and `src/protocols/meridian/pool.ts` and `src/protocols/meridian/farming.ts` still exist and retain their core functions.
 
 ## Technical Context
 
-### Project Structure (all files already exist)
+### Project Structure
 ```
 src/
-├── index.ts              — REPL loop + onboarding flow
-├── config.ts             — MuvConfig type, load/save from ~/.config/muv/config.json
-├── wallet.ts             — WalletData type, load/save/generate/import, getAccount/getAddress helpers
-├── bin/muv.ts            — Binary entry point (shebang + startRepl())
-├── ai/
-│   ├── client.ts         — Singleton Anthropic client via getAIClient()
-│   ├── prompts.ts        — getSystemPrompt(personality, walletAddress) builds system prompt with token list
-│   └── intent.ts         — Tool definitions, handleToolCall dispatcher, ConversationManager class
-├── chain/
-│   ├── client.ts         — Aptos SDK client configured for Movement mainnet
-│   ├── balance.ts        — getBalance(address, tokenAddr), getAllBalances(address)
-│   ├── transfer.ts       — buildTransferPayload(token, recipient, amount)
-│   └── transactions.ts   — buildAndSubmitTransaction(account, payload), simulateTransaction(account, payload)
-├── protocols/meridian/
-│   ├── swap.ts           — buildAmmSwapPayload, buildClammSwapPayload, buildSwapPayload
-│   ├── pool.ts           — getPoolInfo, getUserPositions
-│   └── farming.ts        — getUserFarmingPositions, buildStakePayload, buildUnstakePayload, buildClaimRewardsPayload
+├── bin/muv.ts          — Entry point (currently starts REPL, needs to start MCP server)
+├── index.ts            — REPL logic (TO REMOVE)
+├── config.ts           — Config with API key, personality (TO SIMPLIFY/REMOVE)
+├── wallet.ts           — Wallet storage (TO SIMPLIFY — make per-request utility)
+├── ai/                 — Claude API integration (TO REMOVE entirely)
+│   ├── client.ts
+│   ├── intent.ts
+│   └── prompts.ts
+├── chain/              — Blockchain interaction (KEEP)
+│   ├── client.ts       — Aptos SDK client, RPC: https://mainnet.movementnetwork.xyz/v1
+│   ├── balance.ts      — getAllBalances(address: AccountAddress), getBalance(address, tokenAddr)
+│   ├── transfer.ts     — buildTransferPayload(token, recipient, amount)
+│   └── transactions.ts — buildAndSubmitTransaction(sender: Account, payload), simulateTransaction(sender, payload)
 ├── data/
-│   └── tokens.ts         — TokenInfo interface, TOKEN_REGISTRY array (54 tokens), findToken, findTokenByAddress, formatTokenAmount, parseTokenAmount
+│   └── tokens.ts       — TOKEN_REGISTRY (54 tokens), findToken(), formatTokenAmount(), parseTokenAmount()
+├── protocols/meridian/
+│   ├── swap.ts         — buildSwapPayload(params: SwapParams), buildAmmSwapPayload(), buildClammSwapPayload()
+│   ├── pool.ts         — getUserPositions(userAddress: string)
+│   └── farming.ts      — getUserFarmingPositions(userAddress: string)
 └── ui/
-    ├── display.ts        — displayBalances, displayTransactionPreview, displaySuccess, displayError
-    └── confirm.ts        — confirmTransaction (stdin y/n prompt)
+    ├── display.ts      — displayBalances(), displayError(), displaySuccess() (CAN KEEP for formatting)
+    └── confirm.ts      — confirmTransaction() interactive prompt (TO REMOVE)
 ```
 
 ### Key Patterns
-- **ESM with .js extensions**: All imports use `.js` suffix (e.g., `import { foo } from "./bar.js"`)
-- **Singleton pattern**: AI client uses lazy singleton via `getAIClient()`
-- **Aptos SDK types**: Uses `InputGenerateTransactionPayloadData` for transaction payloads, `Account` for signing, `AccountAddress` for addresses
-- **Claude tool_use loop**: `ConversationManager.processInput()` sends messages, checks `stop_reason === "tool_use"`, dispatches tools, collects `ToolResultBlockParam[]`, re-sends until text response
-- **Tool results printed immediately**: In the tool loop, `console.log(result)` prints tool output before sending back to Claude — this means the user sees balance tables etc. immediately
+
+- **TypeScript ESM**: Project uses `"type": "module"` in package.json, `"module": "Node16"` in tsconfig. All imports use `.js` extensions (e.g., `import { foo } from "./bar.js"`).
+- **Aptos SDK**: Uses `@aptos-labs/ts-sdk` v1.33.1. Key types: `Account`, `Ed25519PrivateKey`, `AccountAddress`, `InputGenerateTransactionPayloadData`, `HexInput`.
+- **Account from private key**: `const privateKey = new Ed25519PrivateKey(keyHex as HexInput); const account = Account.fromPrivateKey({ privateKey });` (see `src/wallet.ts` lines 43-48, 60-62).
+- **Balance queries**: Accept `AccountAddress` objects. Create via `AccountAddress.fromString(addressStr)`.
+- **Position queries**: Accept raw string addresses (`getUserPositions(userAddress: string)`).
+- **Tool schemas**: Currently defined as Anthropic `Tool[]` in `src/ai/intent.ts` lines 22-129. MCP tool schemas use identical JSON Schema format (`zod` schemas or raw objects).
+
+### MCP SDK API (from `@modelcontextprotocol/sdk`)
+
+The `McpServer` class from `@modelcontextprotocol/sdk/server/mcp.js`:
+```typescript
+import { McpServer } from "@modelcontextprotocol/sdk/server/mcp.js";
+import { StdioServerTransport } from "@modelcontextprotocol/sdk/server/stdio.js";
+import { z } from "zod";
+
+const server = new McpServer({ name: "muv", version: "0.1.0" });
+
+server.tool("tool_name", "description", { param: z.string() }, async (args) => {
+  return { content: [{ type: "text", text: JSON.stringify(result) }] };
+});
+
+const transport = new StdioServerTransport();
+await server.connect(transport);
+```
+
+**IMPORTANT**: The `@modelcontextprotocol/sdk` package re-exports `zod` as a peer dependency. The Generator must add `zod` as a dependency in `package.json` as well.
 
 ### Dependencies
-- `@anthropic-ai/sdk` ^0.39.0 — Claude API client, types: `Anthropic`, `MessageParam`, `Tool`, `ContentBlock`, `ToolUseBlock`, `ToolResultBlockParam`
-- `@aptos-labs/ts-sdk` ^1.33.1 — Aptos client, types: `Aptos`, `AptosConfig`, `Network`, `Account`, `Ed25519PrivateKey`, `AccountAddress`, `InputGenerateTransactionPayloadData`, `UserTransactionResponse`
-- Dev: `typescript` ^5.7.0, `tsx` ^4.19.0, `@types/node` ^22.0.0
+- **ADD**: `@modelcontextprotocol/sdk` (latest, e.g., `^1.12.1`), `zod` (e.g., `^3.23.0`)
+- **REMOVE**: `@anthropic-ai/sdk`
+- **KEEP**: `@aptos-labs/ts-sdk` `^1.33.1`
+
+### Files to Create
+1. `src/server.ts` — MCP server setup, tool registration, all 5 tool handlers
+2. `muv-mcp.json` — MCP config for clients
+
+### Files to Delete
+1. `src/ai/client.ts`
+2. `src/ai/intent.ts`
+3. `src/ai/prompts.ts`
+4. `src/index.ts`
+5. `src/ui/confirm.ts`
+
+### Files to Modify
+1. `src/bin/muv.ts` — Replace REPL start with MCP server start
+2. `package.json` — Swap deps, update description
+3. `src/config.ts` — Remove or gut (remove `getAnthropicApiKey`, `MuvConfig`, personality). Can be deleted entirely if no other module depends on `getConfigDir()`. **Note**: `src/wallet.ts` imports `getConfigDir` from `src/config.ts` (line 2). If wallet.ts is simplified to not use file storage, config.ts can be fully removed.
+4. `src/wallet.ts` — Simplify to only export a utility function `accountFromPrivateKey(privateKeyHex: string): Account` (no file I/O). The stored wallet pattern is replaced by per-request private_key parameters.
 
 ### Constraints
-- Do NOT change any token addresses or decimals in the registry
-- Do NOT add testnet/devnet support
-- Do NOT change the Meridian contract addresses
-- The `confirmTransaction` function reads from `process.stdin` directly — this works in the REPL context because readline pauses during tool execution
-- `package.json` `"bin"` field points to `dist/bin/muv.js` — the source is at `src/bin/muv.ts`
-
-### Known Issues to Verify/Fix
-1. **Import path for Anthropic SDK types**: `intent.ts` imports from `@anthropic-ai/sdk/resources/messages.js` — verify this path is valid with SDK v0.39.0. The types `MessageParam`, `Tool`, `ContentBlock`, `ToolUseBlock`, `ToolResultBlockParam` must be importable.
-2. **confirmTransaction stdin conflict**: The `confirm.ts` module reads from `process.stdin` using `.once("data", ...)` while `readline.Interface` in `index.ts` also owns stdin. This may cause conflicts. The readline interface may need to be paused before confirmation and resumed after.
-3. **Conversation memory growth**: `ConversationManager` accumulates all messages without limit. For v1 this is acceptable but could hit token limits in long sessions.
+- `src/data/tokens.ts` must NOT be modified (54 tokens, exact addresses)
+- `src/chain/*` files should remain functionally identical
+- `src/protocols/meridian/*` files should remain functionally identical
+- No `console.log` in the server — stdout is the MCP transport channel
+- All `.js` import extensions must be preserved for ESM compatibility
 
 ## Implementation Hints
 
-1. **If TypeScript compilation fails on Anthropic SDK imports**: The types may need to be imported differently in v0.39.0. Check `node_modules/@anthropic-ai/sdk` for actual export paths. Common alternatives:
-   - `import type { MessageParam } from "@anthropic-ai/sdk/resources/messages"`  (without .js)
-   - `import type { Messages } from "@anthropic-ai/sdk/resources"`
-   - Direct: `import Anthropic from "@anthropic-ai/sdk"` then use `Anthropic.Messages.MessageParam` etc.
+1. **Start with `src/server.ts`**: Create the MCP server and register all 5 tools. The tool handler logic can be adapted from `handleToolCall()` in `src/ai/intent.ts` (lines 131-257) — same switch/case structure but with per-request wallet/account creation and JSON responses.
 
-2. **stdin conflict fix**: In `confirmTransaction`, consider accepting a `readline.Interface` parameter or using a shared readline instance. Alternatively, pause the main readline before calling confirm and resume after.
+2. **Wallet utility**: Create a simple helper in `src/wallet.ts` (or inline in `server.ts`):
+   ```typescript
+   export function accountFromPrivateKey(privateKeyHex: string): Account {
+     const cleaned = privateKeyHex.startsWith("0x") ? privateKeyHex : `0x${privateKeyHex}`;
+     const privateKey = new Ed25519PrivateKey(cleaned as HexInput);
+     return Account.fromPrivateKey({ privateKey });
+   }
+   ```
 
-3. **The `swap_tokens` tool requires `pool_address`**: The system prompt should instruct the AI to inform users that pool addresses are required for swaps if they aren't known. In a future version, pool discovery could be added.
+3. **Tool response format**: All tools should return `{ content: [{ type: "text", text: JSON.stringify(data) }] }` where `data` is the structured JSON result.
 
-4. **Build script**: `npm run build` runs `tsc`. The `dist/` directory already has a previous build. A clean build can be verified with `rm -rf dist && npm run build`.
+4. **Error handling pattern**:
+   ```typescript
+   try {
+     // ... tool logic
+     return { content: [{ type: "text", text: JSON.stringify({ success: true, ...data }) }] };
+   } catch (error) {
+     return { content: [{ type: "text", text: JSON.stringify({ error: true, message: String(error) }) }] };
+   }
+   ```
+
+5. **Cleanup order**: First create `src/server.ts` and update `src/bin/muv.ts`, then delete removed files, then update `package.json`. This ensures the build never breaks mid-refactor.
+
+6. **Keep `src/ui/display.ts`**: It has no interactive I/O and its formatting functions may be useful. Not strictly required but harmless to retain.

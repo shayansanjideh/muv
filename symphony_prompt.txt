@@ -1,0 +1,137 @@
+Build "muv" — a natural language CLI for end users to interact with the Movement blockchain (Aptos fork, chain ID 126) via plain English.
+
+PRODUCT: Users type natural language like "swap 10 USDC.e for MOVE on Meridian" or "what's my balance?" and muv translates intent into on-chain actions using Claude API.
+
+TECH STACK: TypeScript, npm package named "muv", command "muv"
+- Claude API via @anthropic-ai/sdk for NL understanding
+- Aptos TS SDK (@aptos-labs/ts-sdk) for chain interaction
+- Movement mainnet RPC: https://mainnet.movementnetwork.xyz/v1
+
+CORE FEATURES (v1):
+1. WALLET MANAGEMENT: On first run, prompt user to import private key/mnemonic OR generate a new wallet. Store plaintext in ~/.config/muv/wallet.json
+
+2. PERSONALITY SELECTION: On first run, let user choose communication style: (1) Keep it short / terse (2) Be conversational / friendly. Store preference in config.
+
+3. NATURAL LANGUAGE INTERFACE: Interactive REPL mode. User types plain English, Claude API parses intent and maps to blockchain actions. On ambiguous input, AI asks clarifying questions.
+
+4. MERIDIAN DEX INTEGRATION (v1 scope):
+   - Swaps via AMM (0xfbdb3da73efcfa742d542f152d65fc6da7b55dee864cd66475213e4be18c9d54)
+   - Swaps via CLAMM (0x88def51006db6ae8f90051a1531d1b43877eeb233f4c0d99dcb24f49cd27ad5b)
+   - Farming/LP positions (0xf1fc2bc72b9eeaa3cc80239d5c00e49ebab0b2c8a5b55227ce47644b3275ff96)
+   - CLAMM Farming (0x4c5da52eaa510af14e93e7b16dddf3c5d6a9b3f847d18dc8e7499fc71a5a0a24)
+
+5. NATIVE MOVE TRANSFERS: Send MOVE or any supported token to an address.
+
+6. READ QUERIES (deep): Balance checks (all tokens), Meridian pool positions, token prices, transaction history.
+
+7. MANDATORY TX CONFIRMATION: Before any transaction, show the full payload (action, amounts, gas estimate, recipient) and require y/n confirmation.
+
+8. HARDCODED TOKEN REGISTRY: Use these EXACT token addresses and decimals in src/data/tokens.ts. Do NOT fabricate addresses.
+
+CRITICAL TOKENS (must all be included with exact faAddress and decimals):
+- MOVE (native): 0x000000000000000000000000000000000000000000000000000000000000000a (decimals: 8)
+- USDT.e: 0x447721a30109c662dde9c73a0c2c9c9c459fb5e5a9c92f03c50fa69737f5d08d (decimals: 6)
+- USDCx: 0xba11833544a2f99eec743f41a228ca6ffa7f13c3b6b04681d5a79a8b75ff225e (decimals: 6)
+- USDC.e: 0x83121c9f9b0527d1f056e21a950d6bf3b9e9e2e8353d0e95ccea726713cbea39 (decimals: 6)
+- WETH.e: 0x908828f4fb0213d4034c3ded1630bbd904e8a3a6bf3c63270887f0b06653a376 (decimals: 8)
+- WBTC.e: 0xb06f29f24dde9c6daeec1f930f14a441a8d6c0fbea590725e88b340af3e1939c (decimals: 8)
+- USDe: 0x9d146a4c9472a7e7b0dbc72da0eafb02b54173a956ef22a9fba29756f8661c6c (decimals: 6)
+- sUSDe: 0x74f0c7504507f7357f8a218cc70ce3fc0f4b4e9eb8474e53ca778cb1e0c6dcc5 (decimals: 6)
+- USDa: 0x48b904a97eafd065ced05168ec44638a63e1e3bcaec49699f6b8dabbd1424650 (decimals: 8)
+- sUSDa: 0xe699e6c1733462632821b6e5b954c0ed3aa9ad1efb70b6ce92616952ade89258 (decimals: 8)
+- LBTC: 0x0658f4ef6f76c8eeffdc06a30946f3f06723a7f9532e2413312b2a612183759c (decimals: 8)
+- stBTC: 0x95c0fd13373299ada1b9f09ff62473ab8b3908e6a30011730210c141dffdc990 (decimals: 8)
+- enzoBTC: 0xff91f0df99b217436229b85ae900a2b67970eda92a88b06eb305949ec9828ed6 (decimals: 8)
+- solvBTC: 0x527c43638a6c389a9ad702e7085f31c48223624d5102a5207dfab861f482c46d (decimals: 8)
+- ezETH: 0x2f6af255328fe11b88d840d1e367e946ccd16bd7ebddd6ee7e2ef9f7ae0c53ef (decimals: 8)
+- rsETH: 0x51ffc9885233adf3dd411078cad57535ed1982013dc82d9d6c433a55f2e0035d (decimals: 8)
+- weETH: 0xe956f5062c3b9cba00e82dc775d29acf739ffa1e612e619062423b58afdbf035 (decimals: 8)
+- frxUSD: 0xe4354602aa4311f36240dd57f3f3435ffccdbd0cd2963f1a69da39a2dbcd59b5 (decimals: 8)
+- sfrxUSD: 0xbf2efbffbbd7083aaf006379d96b866b73bb4eb9684a7504c62feafe670962c2 (decimals: 8)
+- MSD: 0x7c9d9f4972072b6ff7dfa48f259688e7286abac9ebd192bbda30fea910139024 (decimals: 6)
+- LEAF: 0x111ac0a7d030c38d03da162e2bb38bf5a10d398891d38b58fb14b5f5fb4ead08 (decimals: 8)
+- GUI: 0xdcba5be90cd1fe5d549f9cc97eb9d24d4809b92aeaea9562e12510d91bd0f187 (decimals: 6)
+- CAPY: 0x967d9125a338c5b1e22b6aacaa8d14b2b8b785ca44b614803ecbcdb4898229f3 (decimals: 8)
+- mBTC: 0x0b7400b60e249c92b6b97717e29915474d90eec3e8c510bf5675628367d39e35 (decimals: 10)
+- brBTC: 0x5d613a51971832b7687322fbd60760ffe500a86acb73b7527d617b86381aa47f (decimals: 8)
+- OTC: 0x3ffd430a87712e1c31adf5f61bafb377eaef8139d1b61b24eef085d2bf40c831 (decimals: 8)
+- savUSD: 0xde6eb2598d91fd43c432ba7f0bca56158525a74ac0841b749ce17bf984cf5642 (decimals: 8)
+- M-BTC: 0xc457331726b4672205f8a89f7b6e3a0545e2edadf6e4ee86ceaaf9147ae9d80a (decimals: 8)
+
+Also include these Canopy vault tokens and IPX LP tokens with their exact addresses:
+- cvMOVE (0): 0xe005014fbdd053aebf97b9a36dfeed790d337f571fa9d37690f527acb3015e02 (decimals: 8)
+- cvMOVE (2): 0x01d42fda1a3eac95ebcb4a35ba7f2c76c35855800c9fbf45a5255d146b5bac15 (decimals: 8)
+- cvUSDC.e (3): 0x679de9764607030c4f766793196c59a4035d11d41695ad383be7fd5ec96627e1 (decimals: 6)
+- cvUSDT.e (4): 0x260648cd9df892b69182cc341f07ea7354f844abbe19a9fadbbd95132d56be4e (decimals: 6)
+- cvWETH.e (5): 0x7555729240b52bef2e6af44ea7b4283027de89d64153c8dddd15643a8b5a4f64 (decimals: 8)
+- cvWBTC.e (6): 0xd5a87506bae06f7a76f6361749f782ba6843a0ef712849e90c0a4be8396f2023 (decimals: 8)
+- cvUSDC.e (7): 0x5da81e017aeed89d1a7b306a6c77eff6fd47b341fd9d6ec45af8136b46c04b80 (decimals: 6)
+- cvUSDT.e (8): 0x1ed1007f9ba7d576ec0120a87c886582d725c3c7eddae17ae4f86e0c0ca0dba0 (decimals: 6)
+- cvWETH.e (9): 0x07a5f035e9453d51c9d3b8678aeab50504fac181bc4caf72f5351411911b1530 (decimals: 8)
+- cvWBTC.e (10): 0x60eddcf8672a9c9b9e61d422e511be66cbbbb9b9dfc0d3eb26c91e150a509472 (decimals: 8)
+- cvMER-LP (31): 0x14885b3fbcb8b5d12393315173307dc59adeba3ed209267dde94ebc12e771c04 (decimals: 8)
+- cvrsETH (32): 0x095a1771f3c4569ca57c1e1a55e5b7f985028ba698e7f7b37bc3d582c1cfff6f (decimals: 8)
+- cvezETH (20): 0xa97e35be912b77b4c510f91c396d48217245dc9a910ec05bc37c68846ea624d3 (decimals: 8)
+- cvLBTC (21): 0xa0b21251d70f83ab2c029852ccf5045a457a1ea823e057f7d1c2edf430318ce8 (decimals: 8)
+- cvstBTC (25): 0x9238f77f226807647f0a7eb5f4a3347630d3c3a03eab45da84d38a9f13669325 (decimals: 8)
+- cvrsETH (26): 0x5d127f7607a8c8509c1bc02512fb74c70c78ded3c702d21320304fc60320f6e9 (decimals: 8)
+- cvSolvBTC (27): 0x044d42a3b738a8d9a30de1082bd9e461286da0692b53fac8f0be5852407bcc7f (decimals: 8)
+- cvsUSDa (46): 0x12f98cf92689ba9ea6224d2d0d3d3b7879bd69759f397727edee33104888eed3 (decimals: 8)
+- cvMOVE (15): 0x3d871f7475a839376b5567de59807db876203c628f71c75dbeefdb60139a10f8 (decimals: 8)
+- cvMOVE (45): 0xb9b0b7d867e0f4735953d4c43976ec18322294fa1cb09ac893cce723a347aba1 (decimals: 8)
+- IPX s-USDCe/USDTe: 0x54c89a961dd60e30f1c03ba2c6f5a052e7ed0ba36fcca3c1153f06449199b285 (decimals: 9)
+- IPX v-USDCe/MOVE: 0x691877d4f5d4c1177d02f6ca3d399df4624af265533d305c008f6cb15d1567bc (decimals: 9)
+- IPX v-USDTe/MOVE: 0x12061cb8e5a17ae7d34dd3371479f7cec323e4ad16b8991792fb496d739e87af (decimals: 9)
+- IPX v-USDCe/WETHe: 0x110a99c29036cf12de428f55c6c1e1838578e3db6d17a0b3b4e6d2e101d124f1 (decimals: 9)
+- IPX v-MOVE/WETHe: 0xc047546436145affa73b73df880d7b3a3c793e7155e0c6ad00a323ffc7e1d65a (decimals: 9)
+- IPX s-mUSD/USDCe: 0x11a9500b4eaae0375dea274403bc9a508122c19139f586ba50aea6433e9ff70a (decimals: 9)
+- IPX s-wBTCe/mBTC: 0x02e519bd6512e477af16ab99cddd26da6d7a75fed9d2a4bfa1fec6963e1a6a42 (decimals: 9)
+
+NETWORK: Mainnet only. No testnet/devnet switching.
+
+EXAMPLE INTERACTIONS:
+- "what's my balance?" -> shows all non-zero token balances
+- "swap 10 USDC.e for MOVE" -> builds Meridian AMM swap, shows preview, confirms
+- "send 5 MOVE to 0xabc..." -> native transfer with confirmation
+- "show my Meridian positions" -> queries LP/farming positions
+- "what's the price of MOVE?" -> fetches current price
+- "deposit 10 MOVE into Meridian" -> AI asks clarifying question about which pool/action
+
+PROJECT STRUCTURE:
+muv/
+├── package.json
+├── tsconfig.json
+├── src/
+│   ├── index.ts              # CLI entry point, REPL loop
+│   ├── config.ts             # User config (wallet, personality, etc.)
+│   ├── wallet.ts             # Wallet create/import/load
+│   ├── ai/
+│   │   ├── client.ts         # Claude API client
+│   │   ├── prompts.ts        # System prompts for NL parsing
+│   │   └── intent.ts         # Intent parsing and action mapping
+│   ├── chain/
+│   │   ├── client.ts         # Aptos SDK client for Movement
+│   │   ├── balance.ts        # Balance queries
+│   │   ├── transfer.ts       # Token transfers
+│   │   └── transactions.ts   # Transaction building and submission
+│   ├── protocols/
+│   │   └── meridian/
+│   │       ├── swap.ts       # AMM and CLAMM swaps
+│   │       ├── pool.ts       # Pool queries and LP operations
+│   │       └── farming.ts    # Farming operations
+│   ├── data/
+│   │   └── tokens.ts         # Hardcoded token registry
+│   └── ui/
+│       ├── display.ts        # Output formatting
+│       └── confirm.ts        # Transaction confirmation flow
+├── bin/
+│   └── muv.ts                # Binary entry point
+└── README.md
+
+IMPORTANT CONTEXT:
+- Movement is an Aptos fork. The Aptos TS SDK (@aptos-labs/ts-sdk) works with Movement when configured with the Movement RPC endpoint.
+- Meridian is a CLMM (Concentrated Liquidity Market Maker) DEX on Movement.
+- The token registry should include all tokens from the provided list with their faAddress, symbol, name, and decimals.
+- Native MOVE uses the standard Aptos native coin address (0x1::aptos_coin::AptosCoin or fungible asset equivalent).
+- All transaction operations MUST show a confirmation prompt before submission.
+- The AI should use Claude tool_use / function calling to map NL input to structured actions.

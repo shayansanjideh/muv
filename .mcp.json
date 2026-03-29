@@ -1,0 +1,8 @@
+{
+  "mcpServers": {
+    "muv": {
+      "command": "node",
+      "args": ["/root/muv/dist/bin/muv.js"]
+    }
+  }
+}

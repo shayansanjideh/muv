@@ -11,6 +11,12 @@ import { getUserFarmingPositions } from "./protocols/meridian/farming.js";
 import { buildAndSubmitTransaction } from "./chain/transactions.js";
 import { accountFromPrivateKey } from "./wallet.js";
 
+function getPrivateKey(provided?: string): string {
+  const key = provided || process.env.MUV_PRIVATE_KEY;
+  if (!key) throw new Error("No private key provided. Either pass private_key or set MUV_PRIVATE_KEY environment variable.");
+  return key;
+}
+
 function jsonResponse(data: unknown) {
   return { content: [{ type: "text" as const, text: JSON.stringify(data) }] };
 }
@@ -77,7 +83,7 @@ export async function startServer(): Promise<void> {
     "swap_tokens",
     "Swap one token for another on Meridian DEX on the Movement blockchain.",
     {
-      private_key: z.string().describe("Private key (hex) of the wallet to sign the transaction"),
+      private_key: z.string().optional().describe("Private key (hex). If not provided, uses MUV_PRIVATE_KEY env var"),
       from_token: z.string().describe("Symbol of the token to swap from"),
       to_token: z.string().describe("Symbol of the token to swap to"),
       amount: z.string().describe("Amount of the from_token to swap"),
@@ -108,7 +114,7 @@ export async function startServer(): Promise<void> {
         };
 
         const payload = buildSwapPayload(params);
-        const account = accountFromPrivateKey(private_key);
+        const account = accountFromPrivateKey(getPrivateKey(private_key));
         const result = await buildAndSubmitTransaction(account, payload);
 
         return jsonResponse({
@@ -132,7 +138,7 @@ export async function startServer(): Promise<void> {
     "transfer_tokens",
     "Transfer tokens to another address on the Movement blockchain.",
     {
-      private_key: z.string().describe("Private key (hex) of the wallet to sign the transaction"),
+      private_key: z.string().optional().describe("Private key (hex). If not provided, uses MUV_PRIVATE_KEY env var"),
       token_symbol: z.string().describe("Symbol of the token to transfer"),
       recipient: z.string().describe("Recipient wallet address (0x...)"),
       amount: z.string().describe("Amount to transfer"),
@@ -143,7 +149,7 @@ export async function startServer(): Promise<void> {
         if (!token) return errorResponse(`Unknown token: ${token_symbol}`);
 
         const payload = buildTransferPayload(token, recipient, amount);
-        const account = accountFromPrivateKey(private_key);
+        const account = accountFromPrivateKey(getPrivateKey(private_key));
         const result = await buildAndSubmitTransaction(account, payload);
 
         return jsonResponse({
