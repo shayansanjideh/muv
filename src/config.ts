@@ -2,12 +2,12 @@ import * as fs from "fs";
 import * as path from "path";
 
 export type Personality = "terse" | "friendly";
-export type AuthMethod = "api_key" | "max_plan";
+export type Provider = "anthropic" | "openai" | "claude_plan";
 
 export interface MuvConfig {
   personality: Personality;
-  authMethod: AuthMethod;
-  anthropicApiKey: string;
+  provider: Provider;
+  apiKey: string;
 }
 
 export function getConfigDir(): string {
