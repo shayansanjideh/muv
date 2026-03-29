@@ -1,7 +1,7 @@
 #!/usr/bin/env node
-import { startRepl } from "../index.js";
+import { startServer } from "../server.js";
 
-startRepl().catch((error) => {
+startServer().catch((error) => {
   console.error("Fatal error:", error);
   process.exit(1);
 });
