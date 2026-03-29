@@ -3,6 +3,19 @@
 ## Branch
 `feature/muv-cli`
 
+## Iteration 6 — Eval Feedback Fixes
+
+### Evaluation Result (Iteration 5)
+**PARTIAL PASS** — 12/13 categories passed, 1 medium-severity bug found.
+
+### Changes Made
+- **NEW-BUG-1 (Medium):** `src/protocols/meridian/farming.ts` — Removed broken CLAMM farming code path (`useClamm` parameter and `MERIDIAN_CLAMM_FARMING` constant). The CLAMM farming contract (`0x4c5da52...`) only has `farming` and `package` modules (no `scripts` module), and uses incompatible Object-based signatures (`stake_entry(&signer, Object<Token>, vector<address>)`) vs AMM's u64 pool IDs. The `useClamm=true` path would have failed at transaction submission. Removed dead code rather than implementing a separate CLAMM interface since these functions are not exposed through AI tools.
+
+### Build Status
+`tsc` compiles cleanly with zero errors.
+
+---
+
 ## Iteration 5 — Eval Feedback Fixes
 
 ### Evaluation Result
