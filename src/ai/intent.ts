@@ -1,8 +1,13 @@
 import type Anthropic from "@anthropic-ai/sdk";
-import type { MessageParam, Tool, ContentBlock, ToolUseBlock, ToolResultBlockParam } from "@anthropic-ai/sdk/resources/messages.js";
+
+type MessageParam = Anthropic.MessageParam;
+type Tool = Anthropic.Tool;
+type ContentBlock = Anthropic.ContentBlock;
+type ToolUseBlock = Anthropic.ToolUseBlock;
+type ToolResultBlockParam = Anthropic.ToolResultBlockParam;
 import { getAIClient } from "./client.js";
 import { getSystemPrompt } from "./prompts.js";
-import { findToken, formatTokenAmount, TOKEN_REGISTRY } from "../data/tokens.js";
+import { findToken, formatTokenAmount } from "../data/tokens.js";
 import { getAllBalances, getBalance } from "../chain/balance.js";
 import { buildTransferPayload } from "../chain/transfer.js";
 import { buildSwapPayload, type SwapParams } from "../protocols/meridian/swap.js";
