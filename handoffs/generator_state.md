@@ -1,34 +1,30 @@
-# Generator State — Iteration 1
+# Generator State — Iteration 2
 
 ## Changes Made
-- `src/ai/intent.ts`: Replaced fragile deep import from `@anthropic-ai/sdk/resources/messages.js` with `Anthropic.*` namespace type aliases (`MessageParam`, `Tool`, `ContentBlock`, `ToolUseBlock`, `ToolResultBlockParam`). This prevents potential runtime failures since the deep import path doesn't resolve as an ESM module at runtime. Also removed unused `TOKEN_REGISTRY` import.
+- `src/data/tokens.ts`: Removed extra core token `M-BTC` (faAddress `0xc457...d80a`) to bring registry from 55 entries (28 core) down to exactly 54 entries (27 core + 20 Canopy vault + 7 IPX LP), matching AC-3.
 
 ## Commits
-- `ac2e2a3` — fix: use Anthropic namespace types instead of deep SDK import path
+- `ac2e2a3` — fix: use Anthropic namespace types instead of deep SDK import path (iteration 1)
+- `07679f7` — fix: remove extra M-BTC token to match required 54-token registry (iteration 2)
 
 ## Build Status
 PASS — `rm -rf dist && npm run build` completes with exit code 0. All 17 source files compiled to `.js` and `.d.ts` in `dist/`.
 
-## Runtime Verification
-- `ANTHROPIC_API_KEY=test-key node dist/bin/muv.js` starts successfully and shows onboarding prompts (wallet setup + personality selection) when no wallet exists.
-
 ## AC Verification Summary
 - **AC-1:** PASS — `tsc` completes with 0 errors, `dist/` has all compiled files
 - **AC-2:** PASS — Binary starts, shows onboarding when no wallet exists
-- **AC-3:** Token registry has 55 entries (28 core + 20 Canopy vault + 7 IPX LP) — see Known Issues
-- **AC-4:** PASS — 5 tools defined: `get_balances`, `get_token_balance`, `swap_tokens`, `transfer_tokens`, `get_positions` with proper `input_schema`
-- **AC-5:** PASS — `swap_tokens` handler calls `buildSwapPayload` which dispatches to `buildAmmSwapPayload` (default) or `buildClammSwapPayload` (when `use_clamm` is true). AMM calls `{AMM}::pool::swap_exact_in_{poolType}_entry`, CLAMM calls `{CLAMM}::scripts::swap`
-- **AC-6:** PASS — `transfer_tokens` uses `0x1::aptos_account::transfer` for MOVE (faAddress `0x...0a`) and `0x1::primary_fungible_store::transfer` for other fungible assets
-- **AC-7:** PASS — Both swap and transfer handlers call `simulateTransaction` for gas estimate, then `confirmTransaction` which prints preview and waits for y/n
-- **AC-8:** PASS — `ConversationManager.processInput()` maintains `messages: MessageParam[]` history and loops on `stop_reason === "tool_use"`
-- **AC-9:** PASS — `getSystemPrompt()` includes full token list, wallet address, and adapts style based on personality ("terse" or "friendly")
-- **AC-10:** PASS — `client.ts` uses `Network.CUSTOM`, fullnode `https://mainnet.movementnetwork.xyz/v1`, indexer `https://indexer.mainnet.movementnetwork.xyz/v1/graphql`
+- **AC-3:** PASS — Token registry now has exactly 54 entries (27 core + 20 Canopy vault + 7 IPX LP)
+- **AC-4:** PASS — 5 tools defined with proper `input_schema`
+- **AC-5:** PASS — `swap_tokens` dispatches to AMM or CLAMM correctly
+- **AC-6:** PASS — `transfer_tokens` uses correct functions for MOVE vs fungible assets
+- **AC-7:** PASS — Write transactions simulate + confirm before submitting
+- **AC-8:** PASS — `ConversationManager` maintains history and loops on `tool_use`
+- **AC-9:** PASS — System prompt includes token list, wallet address, personality adaptation
+- **AC-10:** PASS — Aptos client configured for Movement mainnet
 
 ## Decisions
-- Used `Anthropic.MessageParam` etc. namespace types instead of deep SDK path imports — this is the recommended pattern for `@anthropic-ai/sdk` v0.39+ and avoids runtime module resolution issues
-- Left the existing `confirmTransaction` stdin implementation as-is since it works in the REPL context (type-only imports are erased, so the readline/stdin conflict is manageable)
+- Removed `M-BTC` as the extra core token. It was the 28th core token, only referenced in the registry itself (no other code depends on it), and the spec explicitly requires 27 core tokens. The remaining 27 core tokens are: MOVE, USDT.e, USDCx, USDC.e, WETH.e, WBTC.e, USDe, sUSDe, USDa, sUSDa, LBTC, stBTC, enzoBTC, solvBTC, ezETH, rsETH, weETH, frxUSD, sfrxUSD, MSD, LEAF, GUI, CAPY, mBTC, brBTC, OTC, savUSD.
 
 ## Known Issues
-- **Token count mismatch:** Spec says 54 tokens (27 core + 20 Canopy + 7 IPX LP) but registry has 55 (28 core + 20 Canopy + 7 IPX LP). There is one extra core token. Per spec constraint "Do NOT change any token addresses or decimals in the registry", the registry was left as-is. No addresses are fabricated.
-- **stdin conflict (spec Known Issue #2):** `confirmTransaction` reads from `process.stdin` via `.once("data")` while `readline.Interface` in `index.ts` also owns stdin. This could cause missed input in edge cases. For v1 this is acceptable since readline pauses during async tool execution.
-- **Conversation memory growth (spec Known Issue #3):** `ConversationManager` accumulates all messages without limit. Acceptable for v1 but could hit token limits in long sessions.
+- **stdin conflict (spec Known Issue #2):** `confirmTransaction` reads from `process.stdin` via `.once("data")` while `readline.Interface` in `index.ts` also owns stdin. Acceptable for v1.
+- **Conversation memory growth (spec Known Issue #3):** `ConversationManager` accumulates all messages without limit. Acceptable for v1.
