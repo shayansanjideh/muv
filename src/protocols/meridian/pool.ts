@@ -22,7 +22,7 @@ export async function getPoolInfo(
 
     // Look for the pool resource matching these tokens
     for (const resource of resources) {
-      if (resource.type.includes("LiquidityPool")) {
+      if (resource.type.includes("pool::LiquidityPool") || resource.type.includes("pool::Pool")) {
         const data = resource.data as Record<string, unknown>;
         return {
           tokenA: tokenAAddress,
@@ -48,7 +48,7 @@ export async function getUserPositions(
 
     const positions: Array<{ pool: string; liquidity: string }> = [];
     for (const resource of resources) {
-      if (resource.type.includes("LiquidityPosition") || resource.type.includes("LP")) {
+      if (resource.type.includes("pool::LiquidityPosition") || resource.type.includes("pool::LP")) {
         const data = resource.data as Record<string, unknown>;
         positions.push({
           pool: resource.type,

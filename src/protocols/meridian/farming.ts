@@ -25,7 +25,7 @@ export async function getUserFarmingPositions(
 
     const positions: FarmingPosition[] = [];
     for (const resource of resources) {
-      if (resource.type.includes("StakePosition") || resource.type.includes("Farm")) {
+      if (resource.type.includes("farming::StakePosition") || resource.type.includes("farming::Farm") || resource.type.includes("farming::UserInfo")) {
         const data = resource.data as Record<string, unknown>;
         positions.push({
           pool: resource.type,

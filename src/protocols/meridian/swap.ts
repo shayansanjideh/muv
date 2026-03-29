@@ -18,11 +18,15 @@ export interface SwapParams {
   useCLAMM?: boolean;
 }
 
+function calculateMinOutput(rawAmount: bigint, slippageBps: number): bigint {
+  // minOutput = rawAmount * (10000 - slippageBps) / 10000
+  return (rawAmount * BigInt(10000 - slippageBps)) / 10000n;
+}
+
 export function buildAmmSwapPayload(params: SwapParams): InputGenerateTransactionPayloadData {
   const rawAmount = parseTokenAmount(params.amount, params.fromToken.decimals);
-  const slippage = params.slippageBps ?? 50;
-  // Min output = 0 for now; in production, fetch quote first
-  const minOutput = 0n;
+  const slippageBps = params.slippageBps ?? 50;
+  const minOutput = calculateMinOutput(rawAmount, slippageBps);
 
   return {
     function: `${MERIDIAN_AMM}::router::swap_exact_input`,
@@ -38,7 +42,8 @@ export function buildAmmSwapPayload(params: SwapParams): InputGenerateTransactio
 
 export function buildClammSwapPayload(params: SwapParams): InputGenerateTransactionPayloadData {
   const rawAmount = parseTokenAmount(params.amount, params.fromToken.decimals);
-  const minOutput = 0n;
+  const slippageBps = params.slippageBps ?? 50;
+  const minOutput = calculateMinOutput(rawAmount, slippageBps);
 
   return {
     function: `${MERIDIAN_CLAMM}::router::swap_exact_input`,

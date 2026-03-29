@@ -13,11 +13,6 @@ export async function getBalance(
   tokenAddress: string
 ): Promise<bigint> {
   try {
-    const resources = await aptosClient.getAccountResources({
-      accountAddress: address,
-    });
-
-    // Check for fungible asset balance
     const balances = await aptosClient.getCurrentFungibleAssetBalances({
       options: {
         where: {
