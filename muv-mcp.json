@@ -1,0 +1,1 @@
+{"mcpServers":{"muv":{"command":"node","args":["dist/bin/muv.js"]}}}
