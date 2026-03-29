@@ -76,8 +76,16 @@ const tools: Tool[] = [
           type: "string",
           description: "Expected output amount (in to_token units) for slippage calculation. If omitted, minOutput defaults to 1 (no slippage protection).",
         },
+        pool_address: {
+          type: "string",
+          description: "On-chain pool object address (0x...). Required for both AMM and CLAMM swaps.",
+        },
+        zero_for_one: {
+          type: "boolean",
+          description: "CLAMM swap direction flag. true = token0→token1, false = token1→token0. Required for CLAMM swaps.",
+        },
       },
-      required: ["from_token", "to_token", "amount"],
+      required: ["from_token", "to_token", "amount", "pool_address"],
     },
   },
   {
@@ -151,6 +159,8 @@ async function handleToolCall(
           slippageBps: (input.slippage_bps as number) ?? 50,
           ammPoolType: (input.amm_pool_type as "stable" | "weighted" | "metastable") ?? "weighted",
           expectedOutput: input.expected_output as string | undefined,
+          poolAddress: input.pool_address as string,
+          zeroForOne: input.zero_for_one as boolean | undefined,
         };
 
         const payload = buildSwapPayload(params);

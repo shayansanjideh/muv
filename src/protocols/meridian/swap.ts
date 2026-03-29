@@ -21,6 +21,8 @@ export interface SwapParams {
   expectedOutput?: string; // expected output amount (in toToken units) for slippage calc
   useCLAMM?: boolean;
   ammPoolType?: AmmPoolType; // required for AMM swaps; defaults to "weighted"
+  poolAddress?: string; // on-chain pool object address (required for both AMM and CLAMM)
+  zeroForOne?: boolean; // CLAMM: swap direction flag
 }
 
 function calculateMinOutput(expectedOutput: bigint, slippageBps: number): bigint {
@@ -32,23 +34,28 @@ export function buildAmmSwapPayload(params: SwapParams): InputGenerateTransactio
   const slippageBps = params.slippageBps ?? 50;
   const poolType = params.ammPoolType ?? "weighted";
 
-  // AMM has pool-type-specific swap functions — no generic router exists
-  const swapFnName = `swap_exact_in_${poolType}`;
+  // AMM entry functions have _entry suffix: swap_exact_in_{stable,weighted,metastable}_entry
+  // Signature: (&signer, Object<Pool>, Object<Metadata>, u64, Object<Metadata>, u64)
+  const swapFnName = `swap_exact_in_${poolType}_entry`;
 
-  // Compute minOutput from expectedOutput if provided, otherwise use 1n (no slippage protection)
   let minOutput = 1n;
   if (params.expectedOutput) {
     const expectedRaw = parseTokenAmount(params.expectedOutput, params.toToken.decimals);
     minOutput = calculateMinOutput(expectedRaw, slippageBps);
   }
 
+  if (!params.poolAddress) {
+    throw new Error("poolAddress is required for AMM swaps");
+  }
+
   return {
     function: `${MERIDIAN_AMM}::pool::${swapFnName}`,
     typeArguments: [],
     functionArguments: [
+      AccountAddress.fromString(params.poolAddress),
       AccountAddress.fromString(params.fromToken.faAddress),
-      AccountAddress.fromString(params.toToken.faAddress),
       rawAmount,
+      AccountAddress.fromString(params.toToken.faAddress),
       minOutput,
     ],
   };
@@ -58,20 +65,34 @@ export function buildClammSwapPayload(params: SwapParams): InputGenerateTransact
   const rawAmount = parseTokenAmount(params.amount, params.fromToken.decimals);
   const slippageBps = params.slippageBps ?? 50;
 
+  // CLAMM scripts::swap signature:
+  // (&signer, Object<Pool>, u64, u64, u128, bool, bool, String)
+  // = (signer, pool, amount, min_output, sqrt_price_limit, zero_for_one, exact_input, partner)
   let minOutput = 1n;
   if (params.expectedOutput) {
     const expectedRaw = parseTokenAmount(params.expectedOutput, params.toToken.decimals);
     minOutput = calculateMinOutput(expectedRaw, slippageBps);
   }
 
+  if (!params.poolAddress) {
+    throw new Error("poolAddress is required for CLAMM swaps");
+  }
+
+  const zeroForOne = params.zeroForOne ?? true;
+  // sqrt_price_limit: 0 means no limit (let the pool decide)
+  const sqrtPriceLimit = 0n;
+
   return {
     function: `${MERIDIAN_CLAMM}::scripts::swap`,
     typeArguments: [],
     functionArguments: [
-      AccountAddress.fromString(params.fromToken.faAddress),
-      AccountAddress.fromString(params.toToken.faAddress),
+      AccountAddress.fromString(params.poolAddress),
       rawAmount,
       minOutput,
+      sqrtPriceLimit,
+      zeroForOne,
+      true, // exact_input
+      "muv",
     ],
   };
 }

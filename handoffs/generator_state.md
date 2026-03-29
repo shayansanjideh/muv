@@ -1,7 +1,15 @@
 # muv CLI — Implementation Summary
 
 ## Branch
-`feature/muv-cli` (commit `413ed89`)
+`feature/muv-cli`
+
+## Iteration 4 — Eval Feedback Fixes
+
+### Changes Made
+- **NEW-BUG-1 (Critical):** `src/protocols/meridian/swap.ts` — AMM swap functions now use `_entry` suffix (`swap_exact_in_{stable,weighted,metastable}_entry`) and correct argument order: `(pool_object, from_metadata, amount_in, to_metadata, min_out)`. Added required `poolAddress` param.
+- **NEW-BUG-2 (Critical):** `src/protocols/meridian/swap.ts` — CLAMM `scripts::swap` now passes correct arguments matching on-chain signature: `(pool_object, amount, min_output, sqrt_price_limit, zero_for_one, exact_input, partner)`. Added `zeroForOne` param to SwapParams.
+- **NEW-BUG-3 (Medium):** `src/protocols/meridian/farming.ts` — Changed all farming payloads from `farming::` module to `scripts::` module (`scripts::stake`, `scripts::unstake`, `scripts::claim`). Changed params from address to u64 pool_id to match on-chain signatures.
+- `src/ai/intent.ts` — Added `pool_address` (required) and `zero_for_one` tool params. Updated swap handler to pass new params.
 
 ## Iteration 3 — Eval Feedback Fixes
 

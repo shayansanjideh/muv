@@ -41,47 +41,50 @@ export async function getUserFarmingPositions(
 }
 
 export function buildStakePayload(
-  lpTokenAddress: string,
+  poolId: number,
   amount: bigint,
   useClamm: boolean = false
 ): InputGenerateTransactionPayloadData {
   const contract = useClamm ? MERIDIAN_CLAMM_FARMING : MERIDIAN_FARMING;
+  // scripts::stake(&signer, u64, u64) = (signer, pool_id, amount)
   return {
-    function: `${contract}::farming::stake`,
+    function: `${contract}::scripts::stake`,
     typeArguments: [],
     functionArguments: [
-      AccountAddress.fromString(lpTokenAddress),
+      poolId,
       amount,
     ],
   };
 }
 
 export function buildUnstakePayload(
-  lpTokenAddress: string,
+  poolId: number,
   amount: bigint,
   useClamm: boolean = false
 ): InputGenerateTransactionPayloadData {
   const contract = useClamm ? MERIDIAN_CLAMM_FARMING : MERIDIAN_FARMING;
+  // scripts::unstake(&signer, u64, u64) = (signer, pool_id, amount)
   return {
-    function: `${contract}::farming::unstake`,
+    function: `${contract}::scripts::unstake`,
     typeArguments: [],
     functionArguments: [
-      AccountAddress.fromString(lpTokenAddress),
+      poolId,
       amount,
     ],
   };
 }
 
 export function buildClaimRewardsPayload(
-  lpTokenAddress: string,
+  poolId: number,
   useClamm: boolean = false
 ): InputGenerateTransactionPayloadData {
   const contract = useClamm ? MERIDIAN_CLAMM_FARMING : MERIDIAN_FARMING;
+  // scripts::claim(&signer, u64) = (signer, pool_id)
   return {
-    function: `${contract}::farming::claim_meridian`,
+    function: `${contract}::scripts::claim`,
     typeArguments: [],
     functionArguments: [
-      AccountAddress.fromString(lpTokenAddress),
+      poolId,
     ],
   };
 }
