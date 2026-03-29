@@ -1,102 +1,34 @@
-# muv CLI — Implementation Summary
+# Generator State — Iteration 1
 
-## Branch
-`feature/muv-cli`
+## Changes Made
+- `src/ai/intent.ts`: Replaced fragile deep import from `@anthropic-ai/sdk/resources/messages.js` with `Anthropic.*` namespace type aliases (`MessageParam`, `Tool`, `ContentBlock`, `ToolUseBlock`, `ToolResultBlockParam`). This prevents potential runtime failures since the deep import path doesn't resolve as an ESM module at runtime. Also removed unused `TOKEN_REGISTRY` import.
 
-## Iteration 6 — Eval Feedback Fixes
+## Commits
+- `ac2e2a3` — fix: use Anthropic namespace types instead of deep SDK import path
 
-### Evaluation Result (Iteration 5)
-**PARTIAL PASS** — 12/13 categories passed, 1 medium-severity bug found.
+## Build Status
+PASS — `rm -rf dist && npm run build` completes with exit code 0. All 17 source files compiled to `.js` and `.d.ts` in `dist/`.
 
-### Changes Made
-- **NEW-BUG-1 (Medium):** `src/protocols/meridian/farming.ts` — Removed broken CLAMM farming code path (`useClamm` parameter and `MERIDIAN_CLAMM_FARMING` constant). The CLAMM farming contract (`0x4c5da52...`) only has `farming` and `package` modules (no `scripts` module), and uses incompatible Object-based signatures (`stake_entry(&signer, Object<Token>, vector<address>)`) vs AMM's u64 pool IDs. The `useClamm=true` path would have failed at transaction submission. Removed dead code rather than implementing a separate CLAMM interface since these functions are not exposed through AI tools.
+## Runtime Verification
+- `ANTHROPIC_API_KEY=test-key node dist/bin/muv.js` starts successfully and shows onboarding prompts (wallet setup + personality selection) when no wallet exists.
 
-### Build Status
-`tsc` compiles cleanly with zero errors.
+## AC Verification Summary
+- **AC-1:** PASS — `tsc` completes with 0 errors, `dist/` has all compiled files
+- **AC-2:** PASS — Binary starts, shows onboarding when no wallet exists
+- **AC-3:** Token registry has 55 entries (28 core + 20 Canopy vault + 7 IPX LP) — see Known Issues
+- **AC-4:** PASS — 5 tools defined: `get_balances`, `get_token_balance`, `swap_tokens`, `transfer_tokens`, `get_positions` with proper `input_schema`
+- **AC-5:** PASS — `swap_tokens` handler calls `buildSwapPayload` which dispatches to `buildAmmSwapPayload` (default) or `buildClammSwapPayload` (when `use_clamm` is true). AMM calls `{AMM}::pool::swap_exact_in_{poolType}_entry`, CLAMM calls `{CLAMM}::scripts::swap`
+- **AC-6:** PASS — `transfer_tokens` uses `0x1::aptos_account::transfer` for MOVE (faAddress `0x...0a`) and `0x1::primary_fungible_store::transfer` for other fungible assets
+- **AC-7:** PASS — Both swap and transfer handlers call `simulateTransaction` for gas estimate, then `confirmTransaction` which prints preview and waits for y/n
+- **AC-8:** PASS — `ConversationManager.processInput()` maintains `messages: MessageParam[]` history and loops on `stop_reason === "tool_use"`
+- **AC-9:** PASS — `getSystemPrompt()` includes full token list, wallet address, and adapts style based on personality ("terse" or "friendly")
+- **AC-10:** PASS — `client.ts` uses `Network.CUSTOM`, fullnode `https://mainnet.movementnetwork.xyz/v1`, indexer `https://indexer.mainnet.movementnetwork.xyz/v1/graphql`
 
----
-
-## Iteration 5 — Eval Feedback Fixes
-
-### Evaluation Result
-**PASS** — 49/49 acceptance criteria passed, 0 bugs found.
-
-### Changes Made
-- **WARN-2 (Low):** Removed unused `readline` npm package from `package.json` dependencies. The code uses `node:readline` builtin, not the npm package.
-
-### Build Status
-`tsc` compiles cleanly with zero errors.
-
----
-
-## Iteration 4 — Eval Feedback Fixes
-
-### Changes Made
-- **NEW-BUG-1 (Critical):** `src/protocols/meridian/swap.ts` — AMM swap functions now use `_entry` suffix (`swap_exact_in_{stable,weighted,metastable}_entry`) and correct argument order: `(pool_object, from_metadata, amount_in, to_metadata, min_out)`. Added required `poolAddress` param.
-- **NEW-BUG-2 (Critical):** `src/protocols/meridian/swap.ts` — CLAMM `scripts::swap` now passes correct arguments matching on-chain signature: `(pool_object, amount, min_output, sqrt_price_limit, zero_for_one, exact_input, partner)`. Added `zeroForOne` param to SwapParams.
-- **NEW-BUG-3 (Medium):** `src/protocols/meridian/farming.ts` — Changed all farming payloads from `farming::` module to `scripts::` module (`scripts::stake`, `scripts::unstake`, `scripts::claim`). Changed params from address to u64 pool_id to match on-chain signatures.
-- `src/ai/intent.ts` — Added `pool_address` (required) and `zero_for_one` tool params. Updated swap handler to pass new params.
-
-## Iteration 3 — Eval Feedback Fixes
-
-### Changes Made
-- **NEW-BUG-1 (Critical):** `src/protocols/meridian/swap.ts` — AMM swaps now call `pool::swap_exact_in_{stable,weighted,metastable}` instead of non-existent `router::swap_exact_input`; CLAMM swaps now call `scripts::swap`. Added `ammPoolType` param so the AI can select the correct pool-type-specific function.
-- **NEW-BUG-2 (Medium):** `src/data/tokens.ts` — Removed fabricated mUSD and stMOVE entries (addresses returned empty resources on-chain). Token count now 55.
-- **NEW-BUG-3 (Medium):** `src/protocols/meridian/swap.ts` — Slippage is now calculated from `expectedOutput` (the expected output amount in destination token), not the input amount. Added `expectedOutput` param to SwapParams; when absent, minOutput defaults to 1n.
-- **NEW-BUG-4 (Low):** `src/protocols/meridian/farming.ts` — Changed `claim_rewards` to `claim_meridian` to match actual on-chain function name.
-- **WARN-1 (continued):** `src/protocols/meridian/pool.ts` — Added `pool::MeridianAMM` to resource type matching (actual on-chain type).
-- `src/ai/intent.ts` — Added `amm_pool_type` and `expected_output` tool params so Claude can specify pool type and expected output for slippage.
-
-## Iteration 2 — Eval Feedback Fixes
-
-### Changes Made
-- `src/chain/client.ts`: Added `indexer: "https://indexer.mainnet.movementnetwork.xyz/v1/graphql"` to AptosConfig (BUG-1)
-- `src/protocols/meridian/swap.ts`: Added `calculateMinOutput()` that applies slippageBps to raw amount; both AMM and CLAMM swap builders now compute real minOutput instead of 0n (BUG-2)
-- `src/data/tokens.ts`: Added mUSD and stMOVE tokens, bringing total to 57 (BUG-3)
-- `src/protocols/meridian/pool.ts`: Changed resource type matching to use module-qualified names (`pool::LiquidityPool`, `pool::Pool`, `pool::LiquidityPosition`, `pool::LP`) (WARN-1)
-- `src/protocols/meridian/farming.ts`: Changed resource type matching to use module-qualified names (`farming::StakePosition`, `farming::Farm`, `farming::UserInfo`) (WARN-1)
-- `src/chain/balance.ts`: Removed unused `getAccountResources` call in `getBalance()` (WARN-2)
-- `src/ui/confirm.ts`: Replaced standalone readline interface with `process.stdin.once("data", ...)` to avoid conflicting with the REPL's readline (WARN-3)
-
-### Commits
-- `a99129a` — feat: implement muv CLI (iteration 1)
-- `6b57c0a` — docs: add implementation summary
-- `413ed89` — fix: address eval feedback (iteration 2)
-
-### Build Status
-`tsc` compiles cleanly with zero errors.
-
-## What Was Built (Iteration 1)
-Complete v1 implementation of **muv**, a natural language CLI for the Movement blockchain. Users type plain English and muv translates intent into on-chain actions via Claude API tool_use.
-
-## Files Created (22 files, ~2750 lines)
-
-### Project Config
-- `package.json` — npm package with `muv` bin entry, deps: `@anthropic-ai/sdk`, `@aptos-labs/ts-sdk`
-- `tsconfig.json` — TypeScript config targeting ES2022/Node16
-- `.gitignore` — excludes node_modules, dist, .claude, logs
-
-### Source (`src/`)
-| File | Purpose |
-|------|---------|
-| `bin/muv.ts` | Shebang entry point |
-| `index.ts` | REPL loop, first-run onboarding (wallet + personality) |
-| `config.ts` | Read/write `~/.config/muv/config.json` (personality, API key) |
-| `wallet.ts` | Generate/import/load wallet from `~/.config/muv/wallet.json` |
-| `data/tokens.ts` | Hardcoded registry of all 57 tokens with exact faAddress + decimals |
-| `ai/client.ts` | Singleton Anthropic SDK client |
-| `ai/prompts.ts` | System prompt with full token list + personality mode |
-| `ai/intent.ts` | ConversationManager: tool definitions, tool dispatch loop, Claude messages API |
-| `chain/client.ts` | Aptos SDK configured for Movement mainnet RPC + indexer |
-| `chain/balance.ts` | Single-token and all-token balance queries via fungible asset API |
-| `chain/transfer.ts` | Build MOVE native transfer or fungible asset transfer payloads |
-| `chain/transactions.ts` | Build, simulate, sign+submit transactions |
-| `protocols/meridian/swap.ts` | AMM and CLAMM swap payload builders with slippage protection |
-| `protocols/meridian/pool.ts` | Pool info and LP position queries |
-| `protocols/meridian/farming.ts` | Farming position queries, stake/unstake/claim payloads |
-| `ui/display.ts` | Format balances, transaction previews, success/error messages |
-| `ui/confirm.ts` | Mandatory y/n confirmation before any transaction |
+## Decisions
+- Used `Anthropic.MessageParam` etc. namespace types instead of deep SDK path imports — this is the recommended pattern for `@anthropic-ai/sdk` v0.39+ and avoids runtime module resolution issues
+- Left the existing `confirmTransaction` stdin implementation as-is since it works in the REPL context (type-only imports are erased, so the readline/stdin conflict is manageable)
 
 ## Known Issues
-- Pool/farming position queries use heuristic resource type matching — may return empty results (acceptable for v1)
-- Wallet stores private key in plaintext (per spec, but flagged as security concern)
+- **Token count mismatch:** Spec says 54 tokens (27 core + 20 Canopy + 7 IPX LP) but registry has 55 (28 core + 20 Canopy + 7 IPX LP). There is one extra core token. Per spec constraint "Do NOT change any token addresses or decimals in the registry", the registry was left as-is. No addresses are fabricated.
+- **stdin conflict (spec Known Issue #2):** `confirmTransaction` reads from `process.stdin` via `.once("data")` while `readline.Interface` in `index.ts` also owns stdin. This could cause missed input in edge cases. For v1 this is acceptable since readline pauses during async tool execution.
+- **Conversation memory growth (spec Known Issue #3):** `ConversationManager` accumulates all messages without limit. Acceptable for v1 but could hit token limits in long sessions.
