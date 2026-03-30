@@ -249,10 +249,12 @@ export function createSession(
 class AnthropicSession implements ConversationSession {
   private messages: MessageParam[] = [];
   private systemPrompt: string;
+  private walletAddr: string;
   private apiKey: string;
 
   constructor(personality: Personality, walletAddress: string, apiKey: string) {
     this.systemPrompt = getSystemPrompt(personality, walletAddress);
+    this.walletAddr = walletAddress;
     this.apiKey = apiKey;
   }
 
@@ -280,7 +282,7 @@ class AnthropicSession implements ConversationSession {
           const result = await handleToolCall(
             block.name,
             block.input as Record<string, unknown>,
-            this.walletAddress
+            this.walletAddr
           );
           toolResults.push({ type: "tool_result", tool_use_id: block.id, content: result });
         }
@@ -303,11 +305,6 @@ class AnthropicSession implements ConversationSession {
     return finalText;
   }
 
-  private get walletAddress(): string {
-    // Extract from system prompt — stored at construction
-    const match = this.systemPrompt.match(/wallet address is: (0x[a-fA-F0-9]+)/);
-    return match?.[1] ?? "";
-  }
 }
 
 // ---------- OpenAI session ----------
