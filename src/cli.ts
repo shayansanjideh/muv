@@ -7,6 +7,7 @@ import {
   saveConfig,
   configExists,
   walletExists,
+  getConfigDir,
   type MuvConfig,
   type Personality,
   type Provider,
@@ -48,6 +49,9 @@ function addMcpToClaudeCode(): boolean {
     mcpServers["muv"] = {
       command: "node",
       args: [path.join(cwd, "dist/bin/muv.js"), "--mcp"],
+      env: {
+        MUV_CONFIG_DIR: getConfigDir(),
+      },
     };
     projects[cwd].mcpServers = mcpServers;
     claudeConfig.projects = projects;
@@ -59,11 +63,11 @@ function addMcpToClaudeCode(): boolean {
   }
 }
 
-async function setupWallet(): Promise<void> {
+async function setupWallet(): Promise<string> {
   if (walletExists()) {
     const wallet = loadWallet();
-    console.log(chalk.gray(`  Wallet loaded: ${wallet?.address}`));
-    return;
+    console.log(`  Wallet loaded: ${wallet?.address}`);
+    return wallet?.address ?? "";
   }
 
   console.log("");
@@ -80,40 +84,37 @@ async function setupWallet(): Promise<void> {
     saveWallet(data);
     console.log("");
     console.log(chalk.green("  New wallet generated!"));
-    console.log(chalk.gray(`  Address: ${data.address}`));
-    console.log(
-      chalk.yellow(
-        "  Warning: Back up your private key from ~/.config/muv/wallet.json"
-      )
-    );
-  } else if (walletChoice === 2) {
-    const key = await askQuestion(
-      chalk.cyan("  Enter your private key (hex): ")
-    );
+    console.log(`  Address: ${data.address}`);
+    console.log("");
+    console.log(chalk.yellow("  IMPORTANT: Your private key is stored at:"));
+    console.log(chalk.yellow("    ~/.config/muv/wallet.json"));
+    console.log(chalk.yellow("  Back it up somewhere safe. If you lose it, your funds are gone."));
+    return data.address;
+  } else {
+    const key = await askQuestion(chalk.cyan("  Enter your private key (hex): "));
+    if (!key.trim()) {
+      console.log(chalk.red("  Private key cannot be empty."));
+      process.exit(1);
+    }
     try {
       const { data } = importFromPrivateKey(key.trim());
       saveWallet(data);
       console.log("");
       console.log(chalk.green("  Wallet imported!"));
-      console.log(chalk.gray(`  Address: ${data.address}`));
+      console.log(`  Address: ${data.address}`);
+      return data.address;
     } catch (err) {
       console.log(
-        chalk.red(
-          `  Invalid private key: ${err instanceof Error ? err.message : String(err)}`
-        )
+        chalk.red(`  Invalid private key: ${err instanceof Error ? err.message : String(err)}`)
       );
       process.exit(1);
     }
-  } else {
-    console.log(chalk.red("  Invalid choice. Exiting."));
-    process.exit(1);
   }
 }
 
-async function firstRunSetup(): Promise<MuvConfig> {
+async function firstRunSetup(): Promise<MuvConfig | null> {
   displaySetupHeader();
 
-  // Step 1: How are you using muv?
   const providerChoice = await askChoice(
     "  How would you like to use muv?",
     [
@@ -123,27 +124,49 @@ async function firstRunSetup(): Promise<MuvConfig> {
     ]
   );
 
-  // --- Claude plan: auto-configure and start MCP server ---
+  // --- Claude plan: wallet setup + auto-configure MCP ---
   if (providerChoice === 3) {
     console.log("");
+    console.log("  Even in Claude Code mode, muv needs a wallet to sign");
+    console.log("  transactions on Movement.");
 
+    const walletAddress = await setupWallet();
+
+    console.log("");
     const added = addMcpToClaudeCode();
+
     if (added) {
-      console.log(chalk.green("  Done! muv has been added to Claude Code."));
+      console.log(chalk.green("  Claude Code configured!"));
       console.log("");
-      console.log("  Restart Claude Code, then just ask Claude:");
-      console.log(chalk.bold.cyan('  "Check my MOVE balance"'));
-      console.log(chalk.bold.cyan('  "Swap 10 USDC.e for MOVE"'));
+      console.log("  What happens next:");
+      console.log("  1. Restart Claude Code (or open a new session)");
+      console.log("  2. Talk to Claude naturally — it now has Movement superpowers");
+      console.log("");
+      console.log("  Examples — just type these in Claude Code:");
+      console.log(chalk.cyan('    "Check my MOVE balance"'));
+      console.log(chalk.cyan('    "What tokens do I have on Movement?"'));
+      console.log(chalk.cyan('    "Swap 10 USDC.e for MOVE on Meridian"'));
+      console.log(chalk.cyan('    "Send 5 MOVE to 0xabc..."'));
     } else {
       console.log(chalk.yellow("  Could not auto-configure Claude Code."));
       console.log("  Add this to your Claude Code MCP settings manually:");
       console.log("");
       console.log('    "muv": {');
       console.log('      "command": "node",');
-      console.log(`      "args": ["${process.cwd()}/dist/bin/muv.js", "--mcp"]`);
+      console.log(`      "args": ["${process.cwd()}/dist/bin/muv.js", "--mcp"],`);
+      console.log('      "env": {');
+      console.log(`        "MUV_CONFIG_DIR": "${getConfigDir()}"`);
+      console.log("      }");
       console.log("    }");
+      console.log("");
+      console.log("  Then restart Claude Code.");
     }
 
+    console.log("");
+    console.log(`  Your wallet: ${walletAddress}`);
+    console.log(`  Config dir:  ${getConfigDir()}/`);
+    console.log("");
+    console.log(`  To reconfigure, run: muv --reset`);
     console.log("");
 
     const config: MuvConfig = {
@@ -153,7 +176,7 @@ async function firstRunSetup(): Promise<MuvConfig> {
     };
     saveConfig(config);
 
-    process.exit(0);
+    return null; // signal to exit, not start REPL
   }
 
   // --- API key modes ---
@@ -166,19 +189,16 @@ async function firstRunSetup(): Promise<MuvConfig> {
     if (!apiKey) {
       apiKey = await askQuestion(chalk.cyan("  Enter your Anthropic API key: "));
     } else {
-      console.log(chalk.gray("  Using ANTHROPIC_API_KEY from environment."));
+      console.log("  Using ANTHROPIC_API_KEY from environment.");
     }
-  } else if (providerChoice === 2) {
+  } else {
     provider = "openai";
     apiKey = process.env.OPENAI_API_KEY || "";
     if (!apiKey) {
       apiKey = await askQuestion(chalk.cyan("  Enter your OpenAI API key: "));
     } else {
-      console.log(chalk.gray("  Using OPENAI_API_KEY from environment."));
+      console.log("  Using OPENAI_API_KEY from environment.");
     }
-  } else {
-    console.log(chalk.red("  Invalid choice. Exiting."));
-    process.exit(1);
   }
 
   if (!apiKey.trim()) {
@@ -187,10 +207,10 @@ async function firstRunSetup(): Promise<MuvConfig> {
   }
   apiKey = apiKey.trim();
 
-  // Step 2: Wallet
+  // Wallet setup
   await setupWallet();
 
-  // Step 3: Personality
+  // Personality
   console.log("");
   const personalityChoice = await askChoice(
     "  Choose your communication style:",
@@ -215,18 +235,14 @@ async function firstRunSetup(): Promise<MuvConfig> {
   return config;
 }
 
-async function startRepl(config: MuvConfig): Promise<void> {
+async function startRepl(config: MuvConfig, firstRun: boolean): Promise<void> {
   const wallet = loadWallet();
   if (!wallet) {
-    console.log(
-      chalk.red(
-        "No wallet configured. Delete ~/.config/muv/config.json and re-run muv."
-      )
-    );
+    console.log(chalk.red("  No wallet configured. Run muv --reset to set up again."));
     process.exit(1);
   }
 
-  displayWelcome();
+  displayWelcome(firstRun);
 
   const session = createSession(
     config.provider,
@@ -250,7 +266,7 @@ async function startRepl(config: MuvConfig): Promise<void> {
       }
 
       if (trimmed.toLowerCase() === "exit" || trimmed.toLowerCase() === "quit") {
-        console.log(chalk.gray("Goodbye!"));
+        console.log("Goodbye!");
         rl.close();
         return;
       }
@@ -265,9 +281,10 @@ async function startRepl(config: MuvConfig): Promise<void> {
       } catch (err) {
         const msg = err instanceof Error ? err.message : String(err);
         if (msg.includes("authentication") || msg.includes("api_key") || msg.includes("Incorrect API")) {
-          console.log(chalk.red("API key error. Check your key or delete ~/.config/muv/config.json to re-run setup."));
+          console.log(chalk.red("  API key error. Your key may be invalid or expired."));
+          console.log(chalk.red("  Run muv --reset to reconfigure."));
         } else {
-          console.log(chalk.red(`Error: ${msg}`));
+          console.log(chalk.red(`  Error: ${msg}`));
         }
       }
 
@@ -279,42 +296,46 @@ async function startRepl(config: MuvConfig): Promise<void> {
 }
 
 export async function startCli(): Promise<void> {
-  let config: MuvConfig;
-
   if (!configExists()) {
-    config = await firstRunSetup();
-  } else {
-    config = loadConfig()!;
+    const config = await firstRunSetup();
+    if (!config) return; // Path 3 exits after setup
+    await startRepl(config, true);
+    return;
+  }
 
-    // If they previously chose Claude plan, just confirm and exit
-    if (config.provider === "claude_plan") {
-      console.log("");
-      console.log(chalk.bold.cyan("  muv") + " is configured for Claude Code (MCP server).");
-      console.log("  Use it by asking Claude in Claude Code.");
-      console.log("");
-      console.log(chalk.gray("  To switch modes, delete ~/.config/muv/config.json and re-run muv."));
-      console.log(chalk.gray("  To start the MCP server manually: muv --mcp"));
-      console.log("");
-      return;
-    }
+  const config = loadConfig()!;
 
-    // Allow env var override
-    if (config.provider === "anthropic" && process.env.ANTHROPIC_API_KEY) {
-      config.apiKey = process.env.ANTHROPIC_API_KEY;
-    }
-    if (config.provider === "openai" && process.env.OPENAI_API_KEY) {
-      config.apiKey = process.env.OPENAI_API_KEY;
-    }
+  // Returning user — Path 3
+  if (config.provider === "claude_plan") {
+    const wallet = loadWallet();
+    const addr = wallet?.address ?? "not configured";
+    console.log("");
+    console.log(chalk.bold.cyan("  muv") + " is configured for Claude Code (MCP server).");
+    console.log("");
+    console.log("  Use it by talking to Claude in Claude Code. Examples:");
+    console.log(chalk.cyan('    "Check my MOVE balance"'));
+    console.log(chalk.cyan('    "Swap 10 USDC.e for MOVE"'));
+    console.log("");
+    console.log(`  Wallet: ${addr}`);
+    console.log("");
+    console.log(`  To switch modes:  muv --reset`);
+    console.log(`  To start MCP server manually:  muv --mcp`);
+    console.log("");
+    return;
+  }
+
+  // Returning user — Path 1 or 2
+  if (config.provider === "anthropic" && process.env.ANTHROPIC_API_KEY) {
+    config.apiKey = process.env.ANTHROPIC_API_KEY;
+  }
+  if (config.provider === "openai" && process.env.OPENAI_API_KEY) {
+    config.apiKey = process.env.OPENAI_API_KEY;
   }
 
   if (!config.apiKey) {
-    console.log(
-      chalk.red(
-        "No API key configured. Delete ~/.config/muv/config.json to re-run setup."
-      )
-    );
+    console.log(chalk.red("  No API key configured. Run muv --reset to reconfigure."));
     process.exit(1);
   }
 
-  await startRepl(config);
+  await startRepl(config, false);
 }

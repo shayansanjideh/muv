@@ -24,12 +24,14 @@ export async function askChoice(
     console.log(chalk.bold.cyan(`  ${i + 1}. `) + c);
   });
 
-  const answer = await askQuestion("  Choose (number): ");
-  const num = parseInt(answer, 10);
-  if (isNaN(num) || num < 1 || num > choices.length) {
-    return 0; // invalid
+  while (true) {
+    const answer = await askQuestion("  Choose (number): ");
+    const num = parseInt(answer, 10);
+    if (!isNaN(num) && num >= 1 && num <= choices.length) {
+      return num;
+    }
+    console.log(`  Please enter a number from 1 to ${choices.length}.`);
   }
-  return num;
 }
 
 export async function confirmTransaction(): Promise<boolean> {

@@ -49,10 +49,19 @@ export function displayBalances(balances: TokenBalance[]): string {
   return lines.join("\n");
 }
 
-export function displayWelcome(): void {
+export function displayWelcome(showExamples = false): void {
   console.log("");
   console.log(chalk.bold.cyan("  muv") + " — Movement blockchain, plain English");
-  console.log("  Type naturally. Type 'exit' or 'quit' to leave.");
+  console.log("");
+  if (showExamples) {
+    console.log("  Try something:");
+    console.log(chalk.cyan('    "What\'s my MOVE balance?"'));
+    console.log(chalk.cyan('    "Show all my balances"'));
+    console.log(chalk.cyan('    "Send 5 MOVE to 0x123..."'));
+    console.log(chalk.cyan('    "Swap 10 USDC.e for MOVE on Meridian"'));
+    console.log("");
+  }
+  console.log("  Type 'exit' or 'quit' to leave.");
   console.log("");
 }
 

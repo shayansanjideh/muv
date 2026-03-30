@@ -9,12 +9,17 @@ import { buildSwapPayload, type SwapParams } from "./protocols/meridian/swap.js"
 import { getUserPositions } from "./protocols/meridian/pool.js";
 import { getUserFarmingPositions } from "./protocols/meridian/farming.js";
 import { buildAndSubmitTransaction } from "./chain/transactions.js";
-import { accountFromPrivateKey } from "./wallet.js";
+import { accountFromPrivateKey, loadWallet } from "./wallet.js";
 
 function getPrivateKey(provided?: string): string {
-  const key = provided || process.env.MUV_PRIVATE_KEY;
-  if (!key) throw new Error("No private key provided. Either pass private_key or set MUV_PRIVATE_KEY environment variable.");
-  return key;
+  if (provided) return provided;
+  if (process.env.MUV_PRIVATE_KEY) return process.env.MUV_PRIVATE_KEY;
+
+  // Fall back to wallet.json
+  const wallet = loadWallet();
+  if (wallet?.privateKey) return wallet.privateKey;
+
+  throw new Error("No wallet configured. Run `muv` to set up your wallet first.");
 }
 
 function jsonResponse(data: unknown) {
