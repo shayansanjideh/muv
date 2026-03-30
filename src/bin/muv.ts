@@ -5,6 +5,29 @@ import * as path from "path";
 
 const args = process.argv.slice(2);
 
+if (args.includes("--version") || args.includes("-v")) {
+  const pkgPath = new URL("../../package.json", import.meta.url);
+  const pkg = JSON.parse(fs.readFileSync(pkgPath, "utf-8"));
+  console.log(pkg.version);
+  process.exit(0);
+}
+
+if (args.includes("--help") || args.includes("-h")) {
+  console.log("");
+  console.log("  muv — Movement blockchain, plain English");
+  console.log("");
+  console.log("  Usage: muv [options]");
+  console.log("");
+  console.log("  Options:");
+  console.log("    --help        Show this help message");
+  console.log("    --version     Show version number");
+  console.log("    --mcp         Start as MCP server (used by Claude Code)");
+  console.log("    --reset       Reset configuration (keeps wallet)");
+  console.log("    --reset-all   Reset everything including wallet");
+  console.log("");
+  process.exit(0);
+}
+
 if (args.includes("--mcp") || args.includes("serve")) {
   // MCP server mode (called by Claude Code, not by humans)
   import("../server.js").then(({ startServer }) => {
