@@ -6,9 +6,9 @@ export function displayPreview(
   details: Record<string, unknown>
 ): void {
   console.log("");
-  console.log(chalk.yellow("-------------------------------------------"));
+  console.log(chalk.dim("-------------------------------------------"));
   console.log(chalk.bold(`  Transaction Preview: ${action}`));
-  console.log(chalk.yellow("-------------------------------------------"));
+  console.log(chalk.dim("-------------------------------------------"));
 
   for (const [key, value] of Object.entries(details)) {
     if (key === "action") continue;
@@ -16,7 +16,7 @@ export function displayPreview(
     console.log(`  ${chalk.cyan(label.padEnd(16))} ${String(value)}`);
   }
 
-  console.log(chalk.yellow("-------------------------------------------"));
+  console.log(chalk.dim("-------------------------------------------"));
   console.log("");
 }
 
@@ -49,9 +49,12 @@ export function displayBalances(balances: TokenBalance[]): string {
   return lines.join("\n");
 }
 
-export function displayWelcome(showExamples = false): void {
+export function displayWelcome(showExamples = false, walletAddress?: string): void {
   console.log("");
   console.log(chalk.bold.cyan("  muv") + " — Movement blockchain, plain English");
+  if (walletAddress) {
+    console.log(chalk.dim(`  Wallet: ${walletAddress}`));
+  }
   console.log("");
   if (showExamples) {
     console.log("  Try something:");
