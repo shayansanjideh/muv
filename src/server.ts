@@ -13,11 +13,15 @@ import { accountFromPrivateKey, loadWallet } from "./wallet.js";
 
 function getPrivateKey(): string {
   if (process.env.MUV_PRIVATE_KEY) return process.env.MUV_PRIVATE_KEY;
-
-  // Fall back to wallet.json
   const wallet = loadWallet();
   if (wallet?.privateKey) return wallet.privateKey;
+  throw new Error("No wallet configured. Run `muv` to set up your wallet first.");
+}
 
+function getWalletAddress(provided?: string): string {
+  if (provided) return provided;
+  const wallet = loadWallet();
+  if (wallet?.address) return wallet.address;
   throw new Error("No wallet configured. Run `muv` to set up your wallet first.");
 }
 
@@ -32,14 +36,29 @@ function errorResponse(message: string) {
 export async function startServer(): Promise<void> {
   const server = new McpServer({ name: "muv", version: "0.1.0" });
 
+  // Tool: get_wallet_info
+  server.tool(
+    "get_wallet_info",
+    "Get the configured wallet address. Call this first to know the user's wallet — do NOT ask the user for their address.",
+    {},
+    async () => {
+      try {
+        const address = getWalletAddress();
+        return jsonResponse({ wallet_address: address });
+      } catch (error) {
+        return errorResponse(String(error));
+      }
+    }
+  );
+
   // Tool: get_balances
   server.tool(
     "get_balances",
-    "Get all token balances for a wallet on the Movement blockchain.",
-    { wallet_address: z.string().describe("The wallet address to check balances for (0x...)") },
+    "Get all token balances for the user's wallet on the Movement blockchain. Wallet address is auto-detected from config.",
+    { wallet_address: z.string().optional().describe("Wallet address (0x...). Omit to use the configured wallet.") },
     async ({ wallet_address }) => {
       try {
-        const address = AccountAddress.fromString(wallet_address);
+        const address = AccountAddress.fromString(getWalletAddress(wallet_address));
         const balances = await getAllBalances(address);
         return jsonResponse({
           balances: balances.map((b) => ({
@@ -58,16 +77,16 @@ export async function startServer(): Promise<void> {
   // Tool: get_token_balance
   server.tool(
     "get_token_balance",
-    "Get the balance of a specific token for a wallet.",
+    "Get the balance of a specific token for the user's wallet. Wallet address is auto-detected from config.",
     {
-      wallet_address: z.string().describe("The wallet address to check (0x...)"),
+      wallet_address: z.string().optional().describe("Wallet address (0x...). Omit to use the configured wallet."),
       token_symbol: z.string().describe("The token symbol (e.g., MOVE, USDC.e, WETH.e)"),
     },
     async ({ wallet_address, token_symbol }) => {
       try {
         const token = findToken(token_symbol);
         if (!token) return errorResponse(`Unknown token: ${token_symbol}`);
-        const address = AccountAddress.fromString(wallet_address);
+        const address = AccountAddress.fromString(getWalletAddress(wallet_address));
         const balance = await getBalance(address, token.faAddress);
         const formatted = formatTokenAmount(balance, token.decimals);
         return jsonResponse({
@@ -172,13 +191,14 @@ export async function startServer(): Promise<void> {
   // Tool: get_positions
   server.tool(
     "get_positions",
-    "Get Meridian DEX liquidity and farming positions for a wallet.",
-    { wallet_address: z.string().describe("The wallet address to check positions for (0x...)") },
+    "Get Meridian DEX liquidity and farming positions for the user's wallet. Wallet address is auto-detected from config.",
+    { wallet_address: z.string().optional().describe("Wallet address (0x...). Omit to use the configured wallet.") },
     async ({ wallet_address }) => {
       try {
+        const addr = getWalletAddress(wallet_address);
         const [lpPositions, farmPositions] = await Promise.all([
-          getUserPositions(wallet_address),
-          getUserFarmingPositions(wallet_address),
+          getUserPositions(addr),
+          getUserFarmingPositions(addr),
         ]);
 
         return jsonResponse({
