@@ -11,8 +11,7 @@ import { getUserFarmingPositions } from "./protocols/meridian/farming.js";
 import { buildAndSubmitTransaction } from "./chain/transactions.js";
 import { accountFromPrivateKey, loadWallet } from "./wallet.js";
 
-function getPrivateKey(provided?: string): string {
-  if (provided) return provided;
+function getPrivateKey(): string {
   if (process.env.MUV_PRIVATE_KEY) return process.env.MUV_PRIVATE_KEY;
 
   // Fall back to wallet.json
@@ -88,7 +87,6 @@ export async function startServer(): Promise<void> {
     "swap_tokens",
     "Swap one token for another on Meridian DEX on the Movement blockchain.",
     {
-      private_key: z.string().optional().describe("Private key (hex). If not provided, uses MUV_PRIVATE_KEY env var"),
       from_token: z.string().describe("Symbol of the token to swap from"),
       to_token: z.string().describe("Symbol of the token to swap to"),
       amount: z.string().describe("Amount of the from_token to swap"),
@@ -99,7 +97,7 @@ export async function startServer(): Promise<void> {
       expected_output: z.string().optional().describe("Expected output amount for slippage calculation"),
       zero_for_one: z.boolean().optional().describe("CLAMM swap direction flag. true = token0->token1, false = token1->token0"),
     },
-    async ({ private_key, from_token, to_token, amount, pool_address, use_clamm, slippage_bps, amm_pool_type, expected_output, zero_for_one }) => {
+    async ({ from_token, to_token, amount, pool_address, use_clamm, slippage_bps, amm_pool_type, expected_output, zero_for_one }) => {
       try {
         const fromToken = findToken(from_token);
         const toToken = findToken(to_token);
@@ -119,7 +117,7 @@ export async function startServer(): Promise<void> {
         };
 
         const payload = buildSwapPayload(params);
-        const account = accountFromPrivateKey(getPrivateKey(private_key));
+        const account = accountFromPrivateKey(getPrivateKey());
         const result = await buildAndSubmitTransaction(account, payload);
 
         return jsonResponse({
@@ -143,18 +141,17 @@ export async function startServer(): Promise<void> {
     "transfer_tokens",
     "Transfer tokens to another address on the Movement blockchain.",
     {
-      private_key: z.string().optional().describe("Private key (hex). If not provided, uses MUV_PRIVATE_KEY env var"),
       token_symbol: z.string().describe("Symbol of the token to transfer"),
       recipient: z.string().describe("Recipient wallet address (0x...)"),
       amount: z.string().describe("Amount to transfer"),
     },
-    async ({ private_key, token_symbol, recipient, amount }) => {
+    async ({ token_symbol, recipient, amount }) => {
       try {
         const token = findToken(token_symbol);
         if (!token) return errorResponse(`Unknown token: ${token_symbol}`);
 
         const payload = buildTransferPayload(token, recipient, amount);
-        const account = accountFromPrivateKey(getPrivateKey(private_key));
+        const account = accountFromPrivateKey(getPrivateKey());
         const result = await buildAndSubmitTransaction(account, payload);
 
         return jsonResponse({
