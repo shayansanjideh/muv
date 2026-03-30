@@ -1,33 +1,21 @@
 # Generator State — Iteration 1
 
 ## Changes Made
-- `src/server.ts`: Source file already contained the correct implementation from a prior edit. Verified all ACs for source were met:
-  - `getWalletAddress(provided?: string): string` helper present (lines 21-26)
-  - `wallet_address` uses `z.string().optional()` in `get_balances`, `get_token_balance`, and `get_positions`
-  - All three handlers call `getWalletAddress(wallet_address)`
-  - `get_wallet_info` tool registered with empty schema `{}`
-- `dist/server.js`: Rebuilt by running `npm run build` (tsc). Now reflects all source changes.
+- `src/chain/balance.ts`: Three fixes applied:
+  1. Added `normalizeAddress(addr: string): string` utility (exported) that zero-pads any `0x`-prefixed hex to 66 chars (`"0x" + hex.padStart(64, "0")`).
+  2. Rewrote `getBalance` to call `aptosClient.viewJson<[string]>()` with the Move view function `0x1::primary_fungible_store::balance` instead of the indexer. Removed the `try/catch` wrapper so errors propagate to `server.ts`.
+  3. Fixed `getAllBalances`: changed `amount: { _gt: "0" }` to `amount: { _gt: 0 }` (numeric), and changed the `TOKEN_REGISTRY.find()` comparison to use `normalizeAddress()` on both sides so short-form indexer addresses (e.g. `"0xa"`) match long-form registry entries.
 
 ## Commits
-- `f8726da` — feat: make wallet_address optional with auto-detection from config
+- `b29d098` — feat: fix balance checking using view function and address normalization
 
 ## Build Status
-PASS — `npm run build` exits 0 with zero TypeScript errors.
-
-## Acceptance Criteria Verification
-- **AC-1:** `getWalletAddress` present in `src/server.ts`, calls `loadWallet()` when `provided` is falsy ✅
-- **AC-2:** `get_balances` schema uses `z.string().optional()` ✅
-- **AC-3:** `get_token_balance` schema uses `z.string().optional()` ✅
-- **AC-4:** `get_positions` schema uses `z.string().optional()` ✅
-- **AC-5:** `get_wallet_info` tool registered with empty schema `{}` ✅
-- **AC-6:** `npm run build` exits 0, no TypeScript errors ✅
-- **AC-7:** `dist/server.js` contains `get_wallet_info` (2 occurrences) ✅
-- **AC-8:** `dist/server.js` does NOT contain old mandatory pattern `z.string().describe("The wallet address to check balances for` ✅
-- **AC-9:** `dist/server.js` contains 8 occurrences of `optional` (wallet_address optional references) ✅
+PASS (tsc exits 0, no errors)
 
 ## Decisions
-- `dist/` is in `.gitignore` so only `src/server.ts` was committed. The built `dist/server.js` will need to be rebuilt after checkout (or ignored files can be force-added if needed by the evaluator).
-- No changes were needed to any file other than `src/server.ts` (which was already correct) and running the build.
+- `normalizeAddress` is exported from `balance.ts` (not a separate utils file) to keep the change minimal and avoid creating new files unnecessarily.
+- The `try/catch` in `getBalance` was fully removed (not just rethrown) since `server.ts` already wraps calls in `try/catch` that returns `errorResponse()`.
+- `getAllBalances` keeps its existing `try/catch` and rethrows as before — only the indexer query filter and address comparison were changed.
 
 ## Known Issues
 - None
