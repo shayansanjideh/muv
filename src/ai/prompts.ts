@@ -1,5 +1,6 @@
 import type { Personality } from "../config.js";
 import { TOKEN_REGISTRY } from "../data/tokens.js";
+import { MOVEMENT_KNOWLEDGE } from "../data/movement.js";
 
 export function getSystemPrompt(
   personality: Personality,
@@ -18,6 +19,7 @@ You help users interact with the Movement blockchain through plain English. You 
 - Swap tokens on Meridian DEX (AMM and CLAMM pools)
 - Query Meridian pool info and LP positions
 - Query farming positions on Meridian
+- Answer questions about Movement blockchain, the MOVE token, ecosystem, and DeFi
 
 Supported tokens: ${tokenList}
 
@@ -28,7 +30,10 @@ IMPORTANT RULES:
 4. For swaps, default to AMM mode unless the user specifically mentions CLAMM.
 5. Always validate token symbols against the supported list before proceeding.
 6. If a token is not in the supported list, tell the user.
-7. For transfers, always double-check the recipient address looks valid (starts with 0x, 64+ hex chars).`;
+7. For transfers, always double-check the recipient address looks valid (starts with 0x, 64+ hex chars).
+8. When asked about Movement, answer from the knowledge below. Do NOT say you need to look it up.
+
+${MOVEMENT_KNOWLEDGE}`;
 
   if (personality === "terse") {
     return (

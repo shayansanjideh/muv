@@ -10,6 +10,7 @@ import { getUserPositions } from "./protocols/meridian/pool.js";
 import { getUserFarmingPositions } from "./protocols/meridian/farming.js";
 import { buildAndSubmitTransaction } from "./chain/transactions.js";
 import { accountFromPrivateKey, loadWallet } from "./wallet.js";
+import { MOVEMENT_KNOWLEDGE } from "./data/movement.js";
 
 function getPrivateKey(): string {
   if (process.env.MUV_PRIVATE_KEY) return process.env.MUV_PRIVATE_KEY;
@@ -48,6 +49,24 @@ export async function startServer(): Promise<void> {
       } catch (error) {
         return errorResponse(String(error));
       }
+    }
+  );
+
+  // Tool: get_movement_info
+  server.tool(
+    "get_movement_info",
+    "Get information about the Movement blockchain, MOVE token, ecosystem, DeFi protocols, network endpoints, and developer resources. Use this to answer any questions about Movement.",
+    { topic: z.string().optional().describe("Optional topic to focus on (e.g., 'staking', 'bridges', 'token standards', 'defi')") },
+    async ({ topic }) => {
+      if (topic) {
+        // Return relevant section based on topic
+        const sections = MOVEMENT_KNOWLEDGE.split("\n## ");
+        const match = sections.find((s) => s.toLowerCase().includes(topic.toLowerCase()));
+        if (match) {
+          return jsonResponse({ info: "## " + match.trim() });
+        }
+      }
+      return jsonResponse({ info: MOVEMENT_KNOWLEDGE });
     }
   );
 
