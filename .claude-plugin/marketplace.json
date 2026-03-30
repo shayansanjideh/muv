@@ -1,0 +1,9 @@
+{
+  "plugins": [
+    {
+      "name": "muv",
+      "description": "Natural language interface for the Movement blockchain",
+      "source": "github:shayansanjideh/muv"
+    }
+  ]
+}

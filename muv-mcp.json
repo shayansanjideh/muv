@@ -2,9 +2,9 @@
   "mcpServers": {
     "muv": {
       "command": "node",
-      "args": ["dist/bin/muv.js", "--mcp"],
+      "args": ["${CLAUDE_PLUGIN_ROOT}/dist/bin/muv.js", "--mcp"],
       "env": {
-        "MUV_CONFIG_DIR": "/root/.config/muv"
+        "MUV_CONFIG_DIR": "${CLAUDE_PLUGIN_DATA}"
       }
     }
   }

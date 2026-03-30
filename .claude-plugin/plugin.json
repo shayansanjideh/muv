@@ -1,0 +1,12 @@
+{
+  "name": "muv",
+  "version": "0.1.0",
+  "description": "Natural language interface for the Movement blockchain. Check balances, swap tokens on Meridian DEX, transfer MOVE, and explore the ecosystem — all through plain English.",
+  "author": {
+    "name": "Shayan Sanjideh",
+    "url": "https://github.com/shayansanjideh"
+  },
+  "repository": "https://github.com/shayansanjideh/muv",
+  "license": "MIT",
+  "keywords": ["blockchain", "movement", "defi", "wallet", "meridian", "move"]
+}
