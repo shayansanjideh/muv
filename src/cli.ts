@@ -91,23 +91,25 @@ async function setupWallet(): Promise<string> {
     console.log(chalk.yellow("  Back it up somewhere safe. If you lose it, your funds are gone."));
     return data.address;
   } else {
-    const key = await askQuestion(chalk.cyan("  Enter your private key (hex): "));
-    if (!key.trim()) {
-      console.log(chalk.red("  Private key cannot be empty."));
-      process.exit(1);
-    }
-    try {
-      const { data } = importFromPrivateKey(key.trim());
-      saveWallet(data);
-      console.log("");
-      console.log(chalk.green("  Wallet imported!"));
-      console.log(`  Address: ${data.address}`);
-      return data.address;
-    } catch (err) {
-      console.log(
-        chalk.red(`  Invalid private key: ${err instanceof Error ? err.message : String(err)}`)
-      );
-      process.exit(1);
+    while (true) {
+      const key = await askQuestion(chalk.cyan("  Enter your private key (hex): "));
+      if (!key.trim()) {
+        console.log(chalk.red("  Private key cannot be empty. Please try again."));
+        continue;
+      }
+      try {
+        const { data } = importFromPrivateKey(key.trim());
+        saveWallet(data);
+        console.log("");
+        console.log(chalk.green("  Wallet imported!"));
+        console.log(`  Address: ${data.address}`);
+        return data.address;
+      } catch (err) {
+        console.log(
+          chalk.red(`  Invalid private key: ${err instanceof Error ? err.message : String(err)}`)
+        );
+        console.log("  Please try again.");
+      }
     }
   }
 }
@@ -187,7 +189,11 @@ async function firstRunSetup(): Promise<MuvConfig | null> {
     provider = "anthropic";
     apiKey = process.env.ANTHROPIC_API_KEY || "";
     if (!apiKey) {
-      apiKey = await askQuestion(chalk.cyan("  Enter your Anthropic API key: "));
+      while (true) {
+        apiKey = await askQuestion(chalk.cyan("  Enter your Anthropic API key: "));
+        if (apiKey.trim()) break;
+        console.log(chalk.red("  API key cannot be empty. Please try again."));
+      }
     } else {
       console.log("  Using ANTHROPIC_API_KEY from environment.");
     }
@@ -195,16 +201,16 @@ async function firstRunSetup(): Promise<MuvConfig | null> {
     provider = "openai";
     apiKey = process.env.OPENAI_API_KEY || "";
     if (!apiKey) {
-      apiKey = await askQuestion(chalk.cyan("  Enter your OpenAI API key: "));
+      while (true) {
+        apiKey = await askQuestion(chalk.cyan("  Enter your OpenAI API key: "));
+        if (apiKey.trim()) break;
+        console.log(chalk.red("  API key cannot be empty. Please try again."));
+      }
     } else {
       console.log("  Using OPENAI_API_KEY from environment.");
     }
   }
 
-  if (!apiKey.trim()) {
-    console.log(chalk.red("  API key is required."));
-    process.exit(1);
-  }
   apiKey = apiKey.trim();
 
   // Wallet setup
@@ -242,7 +248,7 @@ async function startRepl(config: MuvConfig, firstRun: boolean): Promise<void> {
     process.exit(1);
   }
 
-  displayWelcome(firstRun);
+  displayWelcome(true, wallet.address);
 
   const session = createSession(
     config.provider,
@@ -257,7 +263,7 @@ async function startRepl(config: MuvConfig, firstRun: boolean): Promise<void> {
   });
 
   const prompt = (): void => {
-    rl.question(chalk.cyan("muv> "), async (input) => {
+    rl.question(chalk.bold.cyan("muv> "), async (input) => {
       const trimmed = input.trim();
 
       if (!trimmed) {
