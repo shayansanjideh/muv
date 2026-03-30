@@ -19,12 +19,12 @@ export async function askChoice(
   prompt: string,
   choices: string[]
 ): Promise<number> {
-  console.log(chalk.bold.white(prompt));
+  console.log(prompt);
   choices.forEach((c, i) => {
-    console.log(chalk.bold.cyan(`  ${i + 1}. `) + chalk.white(c));
+    console.log(chalk.bold.cyan(`  ${i + 1}. `) + c);
   });
 
-  const answer = await askQuestion(chalk.white("  Choose (number): "));
+  const answer = await askQuestion("  Choose (number): ");
   const num = parseInt(answer, 10);
   if (isNaN(num) || num < 1 || num > choices.length) {
     return 0; // invalid

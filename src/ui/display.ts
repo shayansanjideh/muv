@@ -7,13 +7,13 @@ export function displayPreview(
 ): void {
   console.log("");
   console.log(chalk.yellow("-------------------------------------------"));
-  console.log(chalk.bold.white(`  Transaction Preview: ${action}`));
+  console.log(chalk.bold(`  Transaction Preview: ${action}`));
   console.log(chalk.yellow("-------------------------------------------"));
 
   for (const [key, value] of Object.entries(details)) {
     if (key === "action") continue;
     const label = formatLabel(key);
-    console.log(`  ${chalk.cyan(label.padEnd(16))} ${chalk.white(String(value))}`);
+    console.log(`  ${chalk.cyan(label.padEnd(16))} ${String(value)}`);
   }
 
   console.log(chalk.yellow("-------------------------------------------"));
@@ -51,14 +51,14 @@ export function displayBalances(balances: TokenBalance[]): string {
 
 export function displayWelcome(): void {
   console.log("");
-  console.log(chalk.bold.cyan("  muv") + chalk.white(" — Movement blockchain, plain English"));
-  console.log(chalk.white("  Type naturally. Type 'exit' or 'quit' to leave."));
+  console.log(chalk.bold.cyan("  muv") + " — Movement blockchain, plain English");
+  console.log("  Type naturally. Type 'exit' or 'quit' to leave.");
   console.log("");
 }
 
 export function displaySetupHeader(): void {
   console.log("");
-  console.log(chalk.bold.cyan("  muv") + chalk.bold.white(" — First-time Setup"));
+  console.log(chalk.bold.cyan("  muv") + " — First-time Setup");
   console.log("");
 }
 

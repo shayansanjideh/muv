@@ -131,17 +131,17 @@ async function firstRunSetup(): Promise<MuvConfig> {
     if (added) {
       console.log(chalk.green("  Done! muv has been added to Claude Code."));
       console.log("");
-      console.log(chalk.white("  Restart Claude Code, then just ask Claude:"));
+      console.log("  Restart Claude Code, then just ask Claude:");
       console.log(chalk.bold.cyan('  "Check my MOVE balance"'));
       console.log(chalk.bold.cyan('  "Swap 10 USDC.e for MOVE"'));
     } else {
       console.log(chalk.yellow("  Could not auto-configure Claude Code."));
-      console.log(chalk.white("  Add this to your Claude Code MCP settings manually:"));
+      console.log("  Add this to your Claude Code MCP settings manually:");
       console.log("");
-      console.log(chalk.bold('    "muv": {'));
-      console.log(chalk.bold('      "command": "node",'));
-      console.log(chalk.bold(`      "args": ["${process.cwd()}/dist/bin/muv.js", "--mcp"]`));
-      console.log(chalk.bold("    }"));
+      console.log('    "muv": {');
+      console.log('      "command": "node",');
+      console.log(`      "args": ["${process.cwd()}/dist/bin/muv.js", "--mcp"]`);
+      console.log("    }");
     }
 
     console.log("");
@@ -289,8 +289,8 @@ export async function startCli(): Promise<void> {
     // If they previously chose Claude plan, just confirm and exit
     if (config.provider === "claude_plan") {
       console.log("");
-      console.log(chalk.bold.cyan("  muv") + chalk.white(" is configured for Claude Code (MCP server)."));
-      console.log(chalk.white("  Use it by asking Claude in Claude Code."));
+      console.log(chalk.bold.cyan("  muv") + " is configured for Claude Code (MCP server).");
+      console.log("  Use it by asking Claude in Claude Code.");
       console.log("");
       console.log(chalk.gray("  To switch modes, delete ~/.config/muv/config.json and re-run muv."));
       console.log(chalk.gray("  To start the MCP server manually: muv --mcp"));
