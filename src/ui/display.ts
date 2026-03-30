@@ -51,14 +51,14 @@ export function displayBalances(balances: TokenBalance[]): string {
 
 export function displayWelcome(): void {
   console.log("");
-  console.log(chalk.bold.cyan("  muv") + chalk.gray(" — Movement blockchain, plain English"));
-  console.log(chalk.gray("  Type naturally. Type 'exit' or 'quit' to leave."));
+  console.log(chalk.bold.cyan("  muv") + chalk.white(" — Movement blockchain, plain English"));
+  console.log(chalk.white("  Type naturally. Type 'exit' or 'quit' to leave."));
   console.log("");
 }
 
 export function displaySetupHeader(): void {
   console.log("");
-  console.log(chalk.bold.cyan("  muv — First-time Setup"));
+  console.log(chalk.bold.cyan("  muv") + chalk.bold.white(" — First-time Setup"));
   console.log("");
 }
 

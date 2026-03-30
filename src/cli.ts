@@ -1,4 +1,6 @@
 import * as readline from "readline";
+import * as fs from "fs";
+import * as path from "path";
 import chalk from "chalk";
 import {
   loadConfig,
@@ -18,6 +20,44 @@ import {
 import { displayWelcome, displaySetupHeader } from "./ui/display.js";
 import { askQuestion, askChoice } from "./ui/confirm.js";
 import { createSession } from "./ai/intent.js";
+
+function addMcpToClaudeCode(): boolean {
+  const claudeConfigPath = path.join(
+    process.env.HOME || "/root",
+    ".claude.json"
+  );
+
+  try {
+    let claudeConfig: Record<string, unknown> = {};
+    if (fs.existsSync(claudeConfigPath)) {
+      claudeConfig = JSON.parse(fs.readFileSync(claudeConfigPath, "utf-8"));
+    }
+
+    const projects = (claudeConfig.projects ?? {}) as Record<string, Record<string, unknown>>;
+    const cwd = process.cwd();
+
+    if (!projects[cwd]) {
+      projects[cwd] = {
+        allowedTools: [],
+        mcpServers: {},
+        hasTrustDialogAccepted: true,
+      };
+    }
+
+    const mcpServers = (projects[cwd].mcpServers ?? {}) as Record<string, unknown>;
+    mcpServers["muv"] = {
+      command: "node",
+      args: [path.join(cwd, "dist/bin/muv.js"), "--mcp"],
+    };
+    projects[cwd].mcpServers = mcpServers;
+    claudeConfig.projects = projects;
+
+    fs.writeFileSync(claudeConfigPath, JSON.stringify(claudeConfig, null, 2));
+    return true;
+  } catch {
+    return false;
+  }
+}
 
 async function setupWallet(): Promise<void> {
   if (walletExists()) {
@@ -83,17 +123,27 @@ async function firstRunSetup(): Promise<MuvConfig> {
     ]
   );
 
-  // --- Claude plan: MCP server mode ---
+  // --- Claude plan: auto-configure and start MCP server ---
   if (providerChoice === 3) {
     console.log("");
-    console.log(chalk.green("  Got it! Starting muv as an MCP server."));
-    console.log("");
-    console.log(chalk.gray("  Add this to your Claude Code MCP settings:"));
-    console.log("");
-    console.log(chalk.white('    "muv": {'));
-    console.log(chalk.white('      "command": "node",'));
-    console.log(chalk.white(`      "args": ["${process.cwd()}/dist/bin/muv.js", "--mcp"]`));
-    console.log(chalk.white("    }"));
+
+    const added = addMcpToClaudeCode();
+    if (added) {
+      console.log(chalk.green("  Done! muv has been added to Claude Code."));
+      console.log("");
+      console.log(chalk.white("  Restart Claude Code, then just ask Claude:"));
+      console.log(chalk.bold.cyan('  "Check my MOVE balance"'));
+      console.log(chalk.bold.cyan('  "Swap 10 USDC.e for MOVE"'));
+    } else {
+      console.log(chalk.yellow("  Could not auto-configure Claude Code."));
+      console.log(chalk.white("  Add this to your Claude Code MCP settings manually:"));
+      console.log("");
+      console.log(chalk.bold('    "muv": {'));
+      console.log(chalk.bold('      "command": "node",'));
+      console.log(chalk.bold(`      "args": ["${process.cwd()}/dist/bin/muv.js", "--mcp"]`));
+      console.log(chalk.bold("    }"));
+    }
+
     console.log("");
 
     const config: MuvConfig = {
@@ -103,8 +153,6 @@ async function firstRunSetup(): Promise<MuvConfig> {
     };
     saveConfig(config);
 
-    const { startServer } = await import("./server.js");
-    await startServer();
     process.exit(0);
   }
 
@@ -238,10 +286,15 @@ export async function startCli(): Promise<void> {
   } else {
     config = loadConfig()!;
 
-    // If they previously chose Claude plan, go straight to MCP server
+    // If they previously chose Claude plan, just confirm and exit
     if (config.provider === "claude_plan") {
-      const { startServer } = await import("./server.js");
-      await startServer();
+      console.log("");
+      console.log(chalk.bold.cyan("  muv") + chalk.white(" is configured for Claude Code (MCP server)."));
+      console.log(chalk.white("  Use it by asking Claude in Claude Code."));
+      console.log("");
+      console.log(chalk.gray("  To switch modes, delete ~/.config/muv/config.json and re-run muv."));
+      console.log(chalk.gray("  To start the MCP server manually: muv --mcp"));
+      console.log("");
       return;
     }
 
