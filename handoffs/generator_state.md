@@ -1,28 +1,33 @@
 # Generator State — Iteration 1
 
 ## Changes Made
-- `src/server.ts`: Created MCP server with McpServer + StdioServerTransport, registered 5 tools (get_balances, get_token_balance, swap_tokens, transfer_tokens, get_positions) with zod schemas and JSON responses. All handlers use try/catch returning structured error JSON.
-- `src/bin/muv.ts`: Replaced REPL startup with `startServer()` import from `../server.js`. Preserved shebang.
-- `src/wallet.ts`: Simplified to single `accountFromPrivateKey(privateKeyHex: string): Account` utility function.
-- `muv-mcp.json`: Created MCP config file at project root with `{"mcpServers":{"muv":{"command":"node","args":["dist/bin/muv.js"]}}}`.
-- `package.json`: Swapped `@anthropic-ai/sdk` for `@modelcontextprotocol/sdk` + `zod`, updated description.
-- Deleted: `src/ai/client.ts`, `src/ai/intent.ts`, `src/ai/prompts.ts`, `src/index.ts`, `src/ui/confirm.ts`, `src/config.ts`
+- `src/server.ts`: Source file already contained the correct implementation from a prior edit. Verified all ACs for source were met:
+  - `getWalletAddress(provided?: string): string` helper present (lines 21-26)
+  - `wallet_address` uses `z.string().optional()` in `get_balances`, `get_token_balance`, and `get_positions`
+  - All three handlers call `getWalletAddress(wallet_address)`
+  - `get_wallet_info` tool registered with empty schema `{}`
+- `dist/server.js`: Rebuilt by running `npm run build` (tsc). Now reflects all source changes.
 
 ## Commits
-- `e52c4ee` — feat: add MCP server with 5 Movement blockchain tools
-- `c55c4db` — refactor: update entry point and wallet for MCP server
-- `f59a4d1` — chore: remove AI/REPL code and interactive UI
-- `6513032` — chore: swap @anthropic-ai/sdk for @modelcontextprotocol/sdk and zod
+- `f8726da` — feat: make wallet_address optional with auto-detection from config
 
 ## Build Status
-PASS — `npx tsc` completes with zero errors.
+PASS — `npm run build` exits 0 with zero TypeScript errors.
+
+## Acceptance Criteria Verification
+- **AC-1:** `getWalletAddress` present in `src/server.ts`, calls `loadWallet()` when `provided` is falsy ✅
+- **AC-2:** `get_balances` schema uses `z.string().optional()` ✅
+- **AC-3:** `get_token_balance` schema uses `z.string().optional()` ✅
+- **AC-4:** `get_positions` schema uses `z.string().optional()` ✅
+- **AC-5:** `get_wallet_info` tool registered with empty schema `{}` ✅
+- **AC-6:** `npm run build` exits 0, no TypeScript errors ✅
+- **AC-7:** `dist/server.js` contains `get_wallet_info` (2 occurrences) ✅
+- **AC-8:** `dist/server.js` does NOT contain old mandatory pattern `z.string().describe("The wallet address to check balances for` ✅
+- **AC-9:** `dist/server.js` contains 8 occurrences of `optional` (wallet_address optional references) ✅
 
 ## Decisions
-- Kept `src/ui/display.ts` as it has no interactive I/O and is harmless to retain.
-- `src/config.ts` was fully deleted since nothing depends on `getConfigDir()` after wallet.ts simplification.
-- Tool handlers return `{ content: [{ type: "text", text: JSON.stringify(data) }] }` for all responses.
-- Error responses use `{ error: true, message: string }` format per spec.
-- The `swap_tokens` and `transfer_tokens` tools accept `private_key` per-request and use `accountFromPrivateKey()` to construct accounts for signing.
+- `dist/` is in `.gitignore` so only `src/server.ts` was committed. The built `dist/server.js` will need to be rebuilt after checkout (or ignored files can be force-added if needed by the evaluator).
+- No changes were needed to any file other than `src/server.ts` (which was already correct) and running the build.
 
 ## Known Issues
-- None identified. All acceptance criteria should be met.
+- None
